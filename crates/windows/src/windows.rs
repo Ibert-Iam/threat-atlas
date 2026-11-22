@@ -120,63 +120,127 @@ fn panorama_setting() -> Option<PathBuf> {
     })
 }
 
-pub fn run() -> Result<(), Box<dyn Error>> {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let command = args
-        .first()
-        .map(|s| s.to_ascii_lowercase())
-        .unwrap_or_else(|| "/c".into());
-    if command.starts_with("/c") || command.starts_with("-c") {
-        let path = panorama_setting().ok_or("Cannot find the local settings folder")?;
-        let enabled = fs::read_to_string(&path).is_ok_and(|mode| mode.trim() == "panorama");
-        let mode = if enabled { "Panorama" } else { "Standard" };
-        let message: Vec<u16> = format!(
-            "Current display mode: {mode}\n\nYes: Panorama across two matching side-by-side displays\nNo: Standard display mode\nCancel: Keep the current mode\n\nLive GreyNoise public threat-map telemetry. No cookies, browser, account or API key required.\nThe AtlasSOC view with rotating OSINT cards is used here. OSINT sources, watched domains and API keys are chosen in AtlasSOC Settings; this screen saver only reads them. With nothing chosen, no OSINT request is made.\nGreen LIVE means records arrived within 10 seconds. Routes expire after 6 seconds. Offline feeds reconnect automatically.\nThe header shows UTC and system local time. Observation times are receipt times in UTC.\nUse Windows Screen Saver Settings for idle time and lock behavior."
-        )
+/// What Windows (or a person) asked the screensaver to do.
+#[derive(Debug, PartialEq, Eq)]
+enum Mode {
+    /// The settings dialog, with the Screen Saver Settings window as its owner when Windows names one.
+    Configure(Option<usize>),
+    /// The small preview inside Screen Saver Settings, drawn into this parent window.
+    Preview(usize),
+    /// Fullscreen screensaver.
+    Run,
+    /// A normal window, for testing.
+    Windowed,
+}
+
+/// One argument without quotes or surrounding space, lowercase.
+fn normalized(arg: &str) -> String {
+    arg.trim().trim_matches('"').trim().to_ascii_lowercase()
+}
+
+/// `/c`, `-c`, `/c:1234` or `/c 1234`: the configuration request and the window handle, if any.
+fn configure_flag(arg: &str) -> Option<Option<usize>> {
+    let rest = arg.strip_prefix("/c").or_else(|| arg.strip_prefix("-c"))?;
+    match rest.strip_prefix(':') {
+        Some(handle) => Some(handle.trim().parse().ok()),
+        None if rest.is_empty() => Some(None),
+        None => None,
+    }
+}
+
+/// Reads the command line the way Windows passes it: `/s` runs the saver, `/p HWND` or `/p:HWND` draws the preview,
+/// `/c`, `/c:HWND` or no argument at all (Explorer's Configure) opens the settings dialog. A `/c` anywhere wins: some
+/// shell launches add it after the `/S` of the .scr file type's own command line, and a request for settings must
+/// never start the fullscreen saver.
+fn parse_mode(args: &[String]) -> Result<Mode, String> {
+    let args: Vec<String> = args
+        .iter()
+        .map(|a| normalized(a))
+        .filter(|a| !a.is_empty())
+        .collect();
+    let Some(first) = args.first() else {
+        return Ok(Mode::Configure(None));
+    };
+    if let Some((index, handle)) = args
+        .iter()
+        .enumerate()
+        .find_map(|(i, a)| configure_flag(a).map(|h| (i, h)))
+    {
+        let handle = handle.or_else(|| args.get(index + 1).and_then(|next| next.parse().ok()));
+        return Ok(Mode::Configure(handle));
+    }
+    if let Some(rest) = first
+        .strip_prefix("/p")
+        .or_else(|| first.strip_prefix("-p"))
+    {
+        let raw = match rest.strip_prefix(':') {
+            Some(handle) => Some(handle.to_string()),
+            None if rest.is_empty() => args.get(1).cloned(),
+            None => return Err("Use /s, /p HWND, /c, or --windowed".into()),
+        };
+        let raw = raw.ok_or("Preview requires a parent HWND")?;
+        return raw
+            .trim()
+            .parse::<usize>()
+            .map(Mode::Preview)
+            .map_err(|_| "Preview requires a parent HWND".into());
+    }
+    match first.as_str() {
+        "/s" | "-s" => Ok(Mode::Run),
+        "--windowed" => Ok(Mode::Windowed),
+        _ if first.starts_with("/s:") || first.starts_with("-s:") => Ok(Mode::Run),
+        _ => Err("Use /s, /p HWND, /c, or --windowed".into()),
+    }
+}
+
+/// The settings dialog: display mode (standard or panorama). OSINT sources and keys are chosen in AtlasSOC.
+fn configure(owner: Option<usize>) -> Result<(), Box<dyn Error>> {
+    let path = panorama_setting().ok_or("Cannot find the local settings folder")?;
+    let enabled = fs::read_to_string(&path).is_ok_and(|mode| mode.trim() == "panorama");
+    let mode = if enabled { "Panorama" } else { "Standard" };
+    let message: Vec<u16> = format!(
+        "Current display mode: {mode}\n\nYes: Panorama across two matching side-by-side displays\nNo: Standard display mode\nCancel: Keep the current mode\n\nLive GreyNoise public threat-map telemetry. No cookies, browser, account or API key required.\nThe AtlasSOC view with rotating OSINT cards is used here. OSINT sources, watched domains and API keys are chosen in AtlasSOC Settings; this screen saver only reads them. With nothing chosen, no OSINT request is made.\nGreen LIVE means records arrived within 10 seconds. Routes expire after 6 seconds. Offline feeds reconnect automatically.\nThe header shows UTC and system local time. Observation times are receipt times in UTC.\nUse Windows Screen Saver Settings for idle time and lock behavior."
+    )
+    .encode_utf16()
+    .chain(Some(0))
+    .collect();
+    let title: Vec<u16> = "Threat Atlas Screen Saver"
         .encode_utf16()
         .chain(Some(0))
         .collect();
-        let title: Vec<u16> = "Threat Atlas Screen Saver"
-            .encode_utf16()
-            .chain(Some(0))
-            .collect();
-        let choice = unsafe {
-            MessageBoxW(
-                std::ptr::null_mut(),
-                message.as_ptr(),
-                title.as_ptr(),
-                MB_YESNOCANCEL,
-            )
-        };
-        if let Some(mode) = match choice {
-            IDYES => Some("panorama"),
-            IDNO => Some("standard"),
-            _ => None,
-        } {
-            fs::create_dir_all(path.parent().ok_or("Invalid settings path")?)?;
-            fs::write(path, mode)?;
-        }
-        return Ok(());
+    // Owned by the Screen Saver Settings window when Windows passed one, so the dialog stays in front of it.
+    let owner = owner
+        .map(|h| h as HWND)
+        .filter(|&h| unsafe { IsWindow(h) } != 0)
+        .unwrap_or(std::ptr::null_mut());
+    let choice = unsafe { MessageBoxW(owner, message.as_ptr(), title.as_ptr(), MB_YESNOCANCEL) };
+    if let Some(mode) = match choice {
+        IDYES => Some("panorama"),
+        IDNO => Some("standard"),
+        _ => None,
+    } {
+        fs::create_dir_all(path.parent().ok_or("Invalid settings path")?)?;
+        fs::write(path, mode)?;
     }
-    let preview = command == "/p" || command == "-p" || command.starts_with("/p:");
-    let parent: Option<HWND> = if preview {
-        let raw = command
-            .split_once(':')
-            .map(|(_, v)| v.to_string())
-            .or_else(|| args.get(1).cloned())
-            .ok_or("Preview requires a parent HWND")?;
-        let hwnd = raw.parse::<usize>()? as HWND;
-        if unsafe { IsWindow(hwnd) } == 0 {
-            return Err("Invalid preview window".into());
+    Ok(())
+}
+
+pub fn run() -> Result<(), Box<dyn Error>> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mode = parse_mode(&args)?;
+    let parent: Option<HWND> = match mode {
+        Mode::Configure(owner) => return configure(owner),
+        Mode::Preview(raw) => {
+            let hwnd = raw as HWND;
+            if unsafe { IsWindow(hwnd) } == 0 {
+                return Err("Invalid preview window".into());
+            }
+            Some(hwnd)
         }
-        Some(hwnd)
-    } else {
-        None
+        Mode::Run | Mode::Windowed => None,
     };
-    if !preview && !["/s", "-s", "--windowed"].contains(&command.as_str()) {
-        return Err("Use /s, /p HWND, /c, or --windowed".into());
-    }
-    let windowed = command == "--windowed";
+    let preview = parent.is_some();
+    let windowed = mode == Mode::Windowed;
     let event_loop = EventLoop::new();
     let mut panorama_size = None;
     let mut panorama_origin = None;
@@ -358,6 +422,44 @@ pub fn run() -> Result<(), Box<dyn Error>> {
 mod tests {
     use super::scaled_frame_layout;
     use threat_atlas_core::{HEIGHT, WIDTH};
+
+    fn mode(args: &[&str]) -> Result<super::Mode, String> {
+        super::parse_mode(&args.iter().map(|a| a.to_string()).collect::<Vec<_>>())
+    }
+
+    #[test]
+    fn configure_is_chosen_for_every_settings_request() {
+        use super::Mode::*;
+        assert_eq!(mode(&[]), Ok(Configure(None)));
+        assert_eq!(mode(&["/c"]), Ok(Configure(None)));
+        assert_eq!(mode(&["/C"]), Ok(Configure(None)));
+        assert_eq!(mode(&["-c"]), Ok(Configure(None)));
+        assert_eq!(mode(&["/c:394812"]), Ok(Configure(Some(394812))));
+        assert_eq!(mode(&["/C:394812"]), Ok(Configure(Some(394812))));
+        assert_eq!(mode(&["/c", "394812"]), Ok(Configure(Some(394812))));
+        assert_eq!(mode(&["\"/c\""]), Ok(Configure(None)));
+        assert_eq!(mode(&[" /c "]), Ok(Configure(None)));
+        // The .scr file type runs `"%1" /S`; a shell launch that appends `/c` must still open the settings.
+        assert_eq!(mode(&["/S", "/c"]), Ok(Configure(None)));
+        assert_eq!(mode(&["/s", "/c:77"]), Ok(Configure(Some(77))));
+        assert_eq!(mode(&["/c:not-a-window"]), Ok(Configure(None)));
+    }
+
+    #[test]
+    fn run_preview_and_windowed_are_unchanged() {
+        use super::Mode::*;
+        assert_eq!(mode(&["/s"]), Ok(Run));
+        assert_eq!(mode(&["/S"]), Ok(Run));
+        assert_eq!(mode(&["-s"]), Ok(Run));
+        assert_eq!(mode(&["--windowed"]), Ok(Windowed));
+        assert_eq!(mode(&["/p", "1234"]), Ok(Preview(1234)));
+        assert_eq!(mode(&["/p:1234"]), Ok(Preview(1234)));
+        assert_eq!(mode(&["/P", "1234"]), Ok(Preview(1234)));
+        assert!(mode(&["/p"]).is_err());
+        assert!(mode(&["/p", "x"]).is_err());
+        assert!(mode(&["/x"]).is_err());
+        assert!(mode(&["/config"]).is_err());
+    }
 
     #[test]
     fn centers_and_fits_common_display_resolutions() {

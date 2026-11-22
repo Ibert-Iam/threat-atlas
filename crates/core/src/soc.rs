@@ -293,6 +293,8 @@ pub fn lon_lat(x: f32, y: f32) -> Option<(f64, f64)> {
 impl Renderer {
     pub fn new_soc() -> Self {
         let mut r = Self::blank();
+        // Not kept: the SOC view builds its country layer once a second in a pixmap it frees right after.
+        r.country_overlay = Pixmap::new(1, 1).unwrap();
         r.paint_soc_base(Theme::Classic);
         r
     }
@@ -637,7 +639,10 @@ impl SocView {
                     (index, severity(dominant), ((22. + 78. * level) * dim) as u8)
                 })
                 .collect();
-            r.countries.fill(&mut r.country_overlay, &fills);
+            // Full-frame layer used only to build `composed`; dropped at the end of this block so it is not
+            // held between refreshes (5 to 8 MB depending on the frame width).
+            let mut overlay = Pixmap::new(r.pix.width(), r.pix.height()).unwrap();
+            r.countries.fill(&mut overlay, &fills);
 
             self.icons = match radar_data {
                 Some(data) if self.options.radar_layer => {
@@ -647,13 +652,13 @@ impl SocView {
             };
             if let Some(focus) = self.options.focus {
                 r.countries
-                    .outline(&mut r.country_overlay, &[(focus, 2.2, 230)], FOCUS);
+                    .outline(&mut overlay, &[(focus, 2.2, 230)], FOCUS);
             }
             let mut composed = r.base.clone();
             composed.draw_pixmap(
                 0,
                 0,
-                r.country_overlay.as_ref(),
+                overlay.as_ref(),
                 &PixmapPaint::default(),
                 Transform::identity(),
                 None,
