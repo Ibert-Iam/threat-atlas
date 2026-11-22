@@ -13,7 +13,8 @@ use tao::{
     window::{Fullscreen, WindowBuilder},
 };
 use threat_atlas_core::{
-    render::panorama, saver::SaverSession, saver_ffi::SaverWorker, Session, HEIGHT, WIDTH,
+    render::panorama, saver::SaverSession, saver_config::SaverSettings, saver_ffi::SaverWorker,
+    Session, HEIGHT, WIDTH,
 };
 use windows_sys::Win32::{
     Foundation::{HWND, POINT, RECT},
@@ -252,6 +253,11 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     let (frame_width, frame_height) = session
         .as_ref()
         .map_or((WIDTH, HEIGHT), |s| s.renderer.size());
+    // Read once per launch from AtlasSOC's settings file, so every start path (idle timer, /s, shortcut) honours
+    // it without extra arguments. Missing or corrupt file: any input ends the saver, as before.
+    let dismiss = crate::saver_host::paths()
+        .map(|(settings, _)| SaverSettings::load(&settings).dismiss)
+        .unwrap_or_default();
     let started = Instant::now();
     let mut origin: POINT = unsafe { std::mem::zeroed() };
     unsafe {
@@ -295,7 +301,8 @@ pub fn run() -> Result<(), Box<dyn Error>> {
                     pressed |= down && !*previous;
                     *previous = down;
                 }
-                if (point.x - origin.x).abs() > 5 || (point.y - origin.y).abs() > 5 || pressed {
+                let moved = (point.x - origin.x).abs() > 5 || (point.y - origin.y).abs() > 5;
+                if dismiss.ends_saver(moved, pressed) {
                     *flow = ControlFlow::Exit;
                     return;
                 }
