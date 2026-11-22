@@ -786,6 +786,7 @@ impl SocView {
                 intel: &self.intel,
             };
             panel.draw(r);
+            r.draw_hour_zones(now);
             return r.pix.data();
         }
 
@@ -1006,6 +1007,7 @@ impl SocView {
                 MUTED,
             );
         }
+        r.draw_hour_zones(now);
         r.pix.data()
     }
     /// Details for the country under a frame point, as JSON for the host's hover panel.

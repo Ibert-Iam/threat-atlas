@@ -17,6 +17,7 @@ pub mod osint_text;
 pub mod osint_worker;
 pub mod radar;
 pub mod radar_poll;
+pub mod timezones;
 pub mod render;
 pub mod saver;
 pub mod saver_config;
