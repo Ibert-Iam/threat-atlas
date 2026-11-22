@@ -207,8 +207,9 @@ fn clean_tags<'a>(tags: impl Iterator<Item = &'a str>) -> Vec<String> {
 /// `YYYY-MM-DD HH:MM:SS` with an optional trailing ` UTC`, as milliseconds since the Unix epoch.
 fn time_ms(s: &str) -> Option<u64> {
     let t = s.trim().trim_end_matches("UTC").trim();
-    let n = chrono::NaiveDateTime::parse_from_str(t, "%Y-%m-%d %H:%M:%S").ok()?;
-    u64::try_from(n.and_utc().timestamp_millis()).ok()
+    let n = jiff::civil::DateTime::strptime("%Y-%m-%d %H:%M:%S", t).ok()?;
+    let n = n.to_zoned(jiff::tz::TimeZone::UTC).ok()?;
+    u64::try_from(n.timestamp().as_millisecond()).ok()
 }
 
 fn https_link(s: &str, prefix: &str) -> Option<String> {
@@ -673,5 +674,17 @@ mod tests {
         assert_eq!(defang("user@host.example"), "user[at]host[.]example");
         assert_eq!(defang("a b\tc"), "a_b_c");
         assert!(!defang("http://evil.example.invalid/").contains("http"));
+    }
+}
+
+#[cfg(test)]
+mod time_parse_tests {
+    use super::*;
+    #[test]
+    fn abusech_times_are_utc_with_optional_suffix() {
+        assert_eq!(time_ms("2026-11-20 12:30:00"), Some(1_795_177_800_000));
+        assert_eq!(time_ms("2026-11-20 12:30:00 UTC"), Some(1_795_177_800_000));
+        assert_eq!(time_ms("2026-11-20T12:30:00"), None);
+        assert_eq!(time_ms(""), None);
     }
 }

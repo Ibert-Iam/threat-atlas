@@ -99,8 +99,8 @@ fn clean(s: &str, max: usize) -> Option<String> {
 }
 
 fn time_ms(s: Option<&str>) -> Option<u64> {
-    let t = chrono::DateTime::parse_from_rfc3339(s?.trim()).ok()?;
-    u64::try_from(t.timestamp_millis()).ok()
+    let t = s?.trim().parse::<jiff::Timestamp>().ok()?;
+    u64::try_from(t.as_millisecond()).ok()
 }
 
 /// Classify a non-200 answer from its HTTP status.
@@ -340,5 +340,23 @@ mod tests {
             fetch_due(Some(5_000), 100),
             "clock went backwards: allow, do not stall"
         );
+    }
+}
+
+#[cfg(test)]
+mod time_parse_tests {
+    use super::*;
+    #[test]
+    fn ransomware_times_are_rfc3339_with_offset() {
+        assert_eq!(
+            time_ms(Some("2026-11-20T12:30:00Z")),
+            Some(1_795_177_800_000)
+        );
+        assert_eq!(
+            time_ms(Some(" 2026-11-20T13:30:00+01:00 ")),
+            Some(1_795_177_800_000)
+        );
+        assert_eq!(time_ms(Some("2026-11-20 12:30:00")), None);
+        assert_eq!(time_ms(None), None);
     }
 }

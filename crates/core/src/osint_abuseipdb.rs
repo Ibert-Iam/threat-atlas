@@ -274,7 +274,7 @@ pub fn parse_check(bytes: &[u8]) -> Result<CheckResult, CheckError> {
         .filter(|c| c.len() == 2 && c.bytes().all(|b| b.is_ascii_uppercase()));
     let last_reported_at = raw
         .last_reported_at
-        .filter(|s| s.len() <= 40 && chrono::DateTime::parse_from_rfc3339(s).is_ok());
+        .filter(|s| s.len() <= 40 && s.parse::<jiff::Timestamp>().is_ok());
     Ok(CheckResult {
         ip: ip.to_string(),
         is_public: raw.is_public,

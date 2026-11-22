@@ -72,7 +72,6 @@ Four informational advisories are explicitly reviewed in `.cargo/audit.toml`:
 | RUSTSEC-2024-0429 | glib 0.18.5 | Unsound Linux GTK iterator; absent from supported Windows and macOS build graphs. |
 | RUSTSEC-2024-0370 | proc-macro-error 1.0.4 | Unmaintained macro on the Linux GTK dependency branch; not used by supported builds. |
 | RUSTSEC-2026-0192 | ttf-parser 0.25.1 | Unmaintained fontdue dependency; parses only the immutable bundled font, never network/user fonts. Plan migration to a maintained font stack. |
-| RUSTSEC-2026-0543 | chrono 0.4.45 | Unmaintained since 2026-09-14, no reported vulnerability. Used in the core for the clock, the local UTC offset and parsing dates from feeds. Exception added 2026-11-18 so CI is not blocked; replace it (planned: jiff) in the next version. |
 
 Both unfiltered and reviewed audit outputs are included in `evidence/`.
 The CI audit fails on new, unreviewed warnings/vulnerabilities. These exceptions

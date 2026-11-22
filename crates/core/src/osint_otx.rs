@@ -117,8 +117,9 @@ pub fn since_ms(last_success_ms: Option<u64>, now_ms: u64) -> u64 {
 
 fn iso_utc(ms: u64) -> String {
     let secs = i64::try_from(ms / 1000).unwrap_or(0);
-    chrono::DateTime::from_timestamp(secs, 0)
-        .map(|d| d.format("%Y-%m-%dT%H:%M:%S").to_string())
+    jiff::Timestamp::from_second(secs)
+        .ok()
+        .map(|d| d.strftime("%Y-%m-%dT%H:%M:%S").to_string())
         .unwrap_or_else(|| "1970-01-01T00:00:00".into())
 }
 
@@ -178,8 +179,9 @@ fn strings(v: &Value, max_items: usize, max_len: usize) -> Vec<String> {
 /// OTX times look like `2026-11-14T08:12:45.123000` (UTC, no zone); a trailing `Z` is accepted.
 fn time_ms(v: &Value) -> Option<u64> {
     let s = v.as_str()?.trim().trim_end_matches('Z');
-    let t = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f").ok()?;
-    u64::try_from(t.and_utc().timestamp_millis()).ok()
+    let t = jiff::civil::DateTime::strptime("%Y-%m-%dT%H:%M:%S%.f", s).ok()?;
+    let t = t.to_zoned(jiff::tz::TimeZone::UTC).ok()?;
+    u64::try_from(t.timestamp().as_millisecond()).ok()
 }
 
 fn truthy(v: &Value) -> bool {
@@ -574,5 +576,22 @@ mod tests {
         assert!(!looks_like_key("short"));
         assert!(!looks_like_key(&format!("{}-", "a".repeat(40))));
         assert!(!looks_like_key(&"a".repeat(129)));
+    }
+}
+
+#[cfg(test)]
+mod time_parse_tests {
+    use super::*;
+    #[test]
+    fn otx_times_are_utc_with_optional_fraction_and_z() {
+        let v = |s: &str| Value::String(s.into());
+        assert_eq!(
+            time_ms(&v("2026-11-14T08:12:45.123000")),
+            Some(1_794_643_965_123)
+        );
+        assert_eq!(time_ms(&v("2026-11-14T08:12:45Z")), Some(1_794_643_965_000));
+        assert_eq!(time_ms(&v("2026-11-14 08:12:45")), None);
+        assert_eq!(time_ms(&v("not a time")), None);
+        assert_eq!(iso_utc(1_794_643_965_123), "2026-11-14T08:12:45");
     }
 }
