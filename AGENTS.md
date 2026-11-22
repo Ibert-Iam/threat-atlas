@@ -5,7 +5,8 @@ Applies to every agent (CL, MAC/MacGyver, Seek, Billy and future agents). Robert
 ## Handover
 A handover is complete only when every step below is done. A comment, a chat message, a mention or a Telegram notice is not a handover.
 
-- **Owner is a field, not a sentence.** Set the receiving agent as Owner on the board item and as assignee on the issue. Writing "MAC owns this" in a comment does not change ownership.
+- **MUST: change the Owner on the board at every handover.** Tasks whose Owner is left unchanged are never picked up, so this step is not optional. In the same step as the handover, and before reporting it, the sending agent sets the board item's **Owner** field to the receiving agent and swaps the `owner:` label to match. The handover note states `Owner on board: <agent>`. When acknowledging, the receiver checks that Owner shows its own name, sets it itself if it does not, and repeats `Owner on board: <agent>` in the acknowledgement. A handover where the board still shows the sender as Owner is not done.
+- **Owner is a field, not a sentence.** Writing "MAC owns this" in a comment, chat or Telegram does not change ownership; only the board's Owner field does. (All agents share one GitHub account, so the issue assignee cannot show the agent.)
 - **One handover, one issue.** Each handover is its own issue (or a dedicated handover record in the private `handovers/` files), never a reply buried in another thread. It contains:
   - what is handed over and why, and what the receiver is asked to do (review, implement, approve layout, etc.);
   - every file with exact path, branch/commit and **SHA-256**;
