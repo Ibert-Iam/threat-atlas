@@ -176,7 +176,7 @@ fn country(s: &str) -> Option<String> {
 
 fn date_ok(s: &str) -> bool {
     let d = s.trim();
-    d.is_empty() || chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok()
+    d.is_empty() || jiff::civil::Date::strptime("%Y-%m-%d", d).is_ok()
 }
 
 /// Parse an origin answer: `13335 | 1.1.1.0/24 | AU | apnic | 2011-08-11`. Anything that does not fit
