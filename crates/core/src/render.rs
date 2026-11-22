@@ -332,7 +332,7 @@ impl Renderer {
             self.line(a, b, c, d, pal.grid, 1., pal.grid_alpha);
         }
         Self::draw_land(&mut self.pix, Transform::identity(), 0.7, &pal);
-        self.draw_compass(895.0, 585.0, 90.0);
+        self.draw_compass(120.0, 570.0, 55.0);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1033,7 +1033,7 @@ mod tests {
             .map(|b| format!("{b:02x}"))
             .collect();
         assert_eq!(
-            hex, "14d368787c5f8250974a027383c29ebd0b76040b92e928853129adf01e076b7b",
+            hex, "78b496f280abab34bd69837fb0c39f1ade30c2b0399c0d570796816c48e29cca",
             "Classic frame changed"
         );
     }
