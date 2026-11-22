@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-22T01:25:29Z",
+  "generated_at": "2026-11-22T02:02:00Z",
   "project": {
     "name": "Threat Atlas",
     "repository_url": "https://github.com/Ibert-Iam/threat-atlas"
@@ -144,7 +144,7 @@
       "id": "mac",
       "name": "MacGyver",
       "role": "Crew (Codex)",
-      "last_seen_at": "2026-11-21T12:30:07Z",
+      "last_seen_at": "2026-11-22T02:01:35Z",
       "state": "unknown",
       "credits": "unknown",
       "credits_checked_at": null,
@@ -154,10 +154,10 @@
       "id": "noris",
       "name": "Seek Norris",
       "role": "CMO, Chief Marketing Officer (DeepSeek)",
-      "last_seen_at": "2026-11-20T18:16:01Z",
+      "last_seen_at": "2026-11-22T01:32:36Z",
       "state": "working",
-      "credits": "unknown",
-      "credits_checked_at": null,
+      "credits": "ok",
+      "credits_checked_at": "2026-11-22T01:32:11Z",
       "source": "status"
     },
     {
