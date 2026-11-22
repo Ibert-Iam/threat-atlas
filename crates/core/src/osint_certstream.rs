@@ -123,7 +123,7 @@ fn clean_text(s: &str) -> Option<String> {
 
 fn valid_time(v: Option<&Value>) -> Option<String> {
     let s = v?.as_str()?;
-    s.parse::<jiff::Timestamp>().ok()?;
+    crate::clock::rfc3339(s)?;
     Some(s.to_string())
 }
 

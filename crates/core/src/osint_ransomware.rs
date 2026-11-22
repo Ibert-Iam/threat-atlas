@@ -99,7 +99,7 @@ fn clean(s: &str, max: usize) -> Option<String> {
 }
 
 fn time_ms(s: Option<&str>) -> Option<u64> {
-    let t = s?.trim().parse::<jiff::Timestamp>().ok()?;
+    let t = crate::clock::rfc3339(s?.trim())?;
     u64::try_from(t.as_millisecond()).ok()
 }
 
