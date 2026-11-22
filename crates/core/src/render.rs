@@ -437,7 +437,7 @@ impl Renderer {
             Some(pos) => pos,
             None => {
                 // Fallback only when the host has not resolved a location yet.
-                let offset = chrono::Local::now().offset().local_minus_utc();
+                let offset = crate::clock::local_offset_seconds();
                 let mut fallback = (offset as f64 / 3600.0) * 15.0;
                 if fallback > 180.0 {
                     fallback -= 360.0;
@@ -606,9 +606,9 @@ impl Renderer {
         );
         let received = i64::try_from(received_ms)
             .ok()
-            .and_then(chrono::DateTime::<chrono::Utc>::from_timestamp_millis)
+            .and_then(|ms| jiff::Timestamp::from_millisecond(ms).ok())
             .filter(|_| data.is_some())
-            .map_or("-".into(), |t| t.format("%H:%M UTC").to_string());
+            .map_or("-".into(), |t| t.strftime("%H:%M UTC").to_string());
         let boxes = [
             (
                 "ROWS",

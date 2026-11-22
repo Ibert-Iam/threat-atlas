@@ -99,8 +99,8 @@ fn clean(s: &str, max: usize) -> Option<String> {
 }
 
 fn time_ms(s: Option<&str>) -> Option<u64> {
-    let t = chrono::DateTime::parse_from_rfc3339(s?.trim()).ok()?;
-    u64::try_from(t.timestamp_millis()).ok()
+    let t = crate::clock::parse_rfc3339(s?.trim())?;
+    u64::try_from(t.as_millisecond()).ok()
 }
 
 /// Classify a non-200 answer from its HTTP status.

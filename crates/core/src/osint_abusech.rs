@@ -207,8 +207,9 @@ fn clean_tags<'a>(tags: impl Iterator<Item = &'a str>) -> Vec<String> {
 /// `YYYY-MM-DD HH:MM:SS` with an optional trailing ` UTC`, as milliseconds since the Unix epoch.
 fn time_ms(s: &str) -> Option<u64> {
     let t = s.trim().trim_end_matches("UTC").trim();
-    let n = chrono::NaiveDateTime::parse_from_str(t, "%Y-%m-%d %H:%M:%S").ok()?;
-    u64::try_from(n.and_utc().timestamp_millis()).ok()
+    let n = jiff::civil::DateTime::strptime("%Y-%m-%d %H:%M:%S", t).ok()?;
+    let n = n.to_zoned_datetime(jiff::tz::TimeZone::UTC).ok()?;
+    u64::try_from(n.timestamp().as_millisecond()).ok()
 }
 
 fn https_link(s: &str, prefix: &str) -> Option<String> {
