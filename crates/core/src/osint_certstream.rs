@@ -123,7 +123,7 @@ fn clean_text(s: &str) -> Option<String> {
 
 fn valid_time(v: Option<&Value>) -> Option<String> {
     let s = v?.as_str()?;
-    chrono::DateTime::parse_from_rfc3339(s).ok()?;
+    crate::clock::parse_rfc3339(s)?;
     Some(s.to_string())
 }
 
