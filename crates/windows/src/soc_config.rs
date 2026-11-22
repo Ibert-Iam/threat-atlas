@@ -52,6 +52,22 @@ impl Theme {
     }
 }
 
+/// What ends the screensaver (read by the saver, edited here). Any input stays the default.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum SaverDismiss {
+    #[default]
+    Any,
+    /// Mouse movement is ignored; a key press or a click ends the saver. Serialised as `"keys"`, the value
+    /// `threat_atlas_core::saver_config::Dismiss::KEYS_ONLY_VALUE` reads.
+    Keys,
+}
+impl SaverDismiss {
+    pub fn is_any(&self) -> bool {
+        *self == SaverDismiss::Any
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Settings {
@@ -72,6 +88,9 @@ pub struct Settings {
     pub enabled_sources: Vec<String>,
     /// Domains watched in the certificate logs (at most 10, the user's own).
     pub watch_domains: Vec<String>,
+    /// Omitted while Any, so settings files stay readable by earlier builds.
+    #[serde(skip_serializing_if = "SaverDismiss::is_any")]
+    pub saver_dismiss: SaverDismiss,
 }
 impl Default for Settings {
     fn default() -> Self {
@@ -89,6 +108,7 @@ impl Default for Settings {
             radar_layer: true,
             enabled_sources: threat_atlas_core::osint::default_enabled_ids(),
             watch_domains: Vec::new(),
+            saver_dismiss: SaverDismiss::Any,
         }
     }
 }
@@ -316,6 +336,30 @@ mod tests {
             Settings::load(&path).1.is_some(),
             "unknown theme falls back to defaults"
         );
+        fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn saver_dismissal_roundtrips_and_the_saver_reads_it() {
+        use threat_atlas_core::saver_config::{Dismiss, SaverSettings};
+        let path = scratch("dismiss.json");
+        // Default: not written, so earlier builds still read the file, and the saver keeps any-input dismissal.
+        Settings::default().save(&path).unwrap();
+        assert!(!fs::read_to_string(&path).unwrap().contains("saver_dismiss"));
+        assert_eq!(SaverSettings::load(&path).dismiss, Dismiss::AnyInput);
+        let keys = Settings {
+            saver_dismiss: SaverDismiss::Keys,
+            ..Settings::default()
+        };
+        keys.save(&path).unwrap();
+        assert!(fs::read_to_string(&path).unwrap().contains(&format!(
+            r#""saver_dismiss": "{}""#,
+            Dismiss::KEYS_ONLY_VALUE
+        )));
+        // Survives a restart (reload) and is what the saver sees.
+        assert_eq!(Settings::load(&path), (keys.clone(), None));
+        let saver = SaverSettings::load(&path);
+        assert_eq!(saver.dismiss, Dismiss::KeysOnly);
+        assert_eq!(saver.enabled_sources, keys.enabled_sources);
         fs::remove_file(path).unwrap();
     }
     #[test]
