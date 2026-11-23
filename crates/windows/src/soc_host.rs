@@ -887,7 +887,7 @@ fn menu(
                         0
                     },
                 60,
-                wide("Screensaver: ignore mouse movement (a key or click still ends it)").as_ptr(),
+                wide("Screensaver: ignore the mouse (only a key press ends it)").as_ptr(),
             );
             AppendMenuW(
                 settings_menu,
