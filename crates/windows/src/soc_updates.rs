@@ -20,6 +20,8 @@ pub const MAX_SIGNATURE_BYTES: usize = threat_atlas_core::feed_signature::MAX_SI
 /// A check is due once a day, plus a per-installation offset so installations do not all ask at once.
 pub const DAY_SECONDS: i64 = 24 * 60 * 60;
 pub const MAX_JITTER_SECONDS: i64 = 60 * 60;
+/// After a failed check (no network at start-up, a GitHub hiccup) the next try comes after an hour.
+pub const RETRY_AFTER_FAILURE_SECONDS: i64 = 60 * 60;
 
 const IDENTITY: &str = include_str!("../../../atlassoc-beta-version.json");
 
@@ -85,8 +87,9 @@ pub fn channel_name(channel: Channel) -> &'static str {
     }
 }
 
-/// True when the daily check is due: never checked, the last check is a day plus `jitter` old, or the
-/// stored time is unreadable or in the future (a clock that moved back must not stop checks for good).
+/// True when the daily check is due: never checked, the last check is a day plus `jitter` old (an hour
+/// after a failed check), or the stored time is unreadable or in the future (a clock that moved back must
+/// not stop checks for good).
 pub fn due(state: &CheckState, now_seconds: i64, jitter_seconds: i64) -> bool {
     let Some(last) = state
         .last_check
@@ -96,7 +99,12 @@ pub fn due(state: &CheckState, now_seconds: i64, jitter_seconds: i64) -> bool {
         return true;
     };
     let age = now_seconds - last.as_second();
-    age < 0 || age >= DAY_SECONDS + jitter_seconds.clamp(0, MAX_JITTER_SECONDS)
+    let wait = if state.last_result.as_deref() == Some("failed") {
+        RETRY_AFTER_FAILURE_SECONDS
+    } else {
+        DAY_SECONDS + jitter_seconds.clamp(0, MAX_JITTER_SECONDS)
+    };
+    age < 0 || age >= wait
 }
 
 /// A stable per-installation offset in `0..=MAX_JITTER_SECONDS`, derived from the state directory path so
@@ -264,6 +272,12 @@ mod tests {
             "jitter is capped"
         );
         assert!(due(&state, now - 7200, 0), "clock moved back");
+        state.last_result = Some("failed".into());
+        assert!(!due(&state, now + 1800, 0), "failed check waits a little");
+        assert!(
+            due(&state, now + RETRY_AFTER_FAILURE_SECONDS, 3600),
+            "then retries within the hour"
+        );
         state.last_check = Some("garbage".into());
         assert!(due(&state, now, 0));
     }

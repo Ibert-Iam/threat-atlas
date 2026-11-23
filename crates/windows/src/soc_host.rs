@@ -1013,7 +1013,7 @@ fn start_update(window: &Window, update: &UpdateView) -> bool {
     if answer != IDYES {
         return false;
     }
-    match soc_update::launch() {
+    match soc_update::launch(offer.channel) {
         Ok(()) => true,
         Err(error) => {
             show_error(&format!("Cannot start the update: {error}"));

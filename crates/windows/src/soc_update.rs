@@ -17,12 +17,10 @@ use std::{
     time::Duration,
 };
 use threat_atlas_core::{
-    update::is_prerelease,
     update_check::{CheckState, Outcome},
-    update_feed::Selected,
+    update_feed::{Channel, Selected},
 };
 
-const IDENTITY: &str = include_str!("../../../atlassoc-beta-version.json");
 const SCRIPT: &str = include_str!("../../../scripts/update-atlassoc.ps1");
 const STATE_FILE: &str = "update-check.json";
 /// How often the thread looks whether the daily check is due.
@@ -74,11 +72,20 @@ impl Updater {
     }
 
     pub fn check_now(&self) {
+        self.mark_checking();
         let _ = self.tx.send(Request::CheckNow);
+    }
+
+    /// Shows "Checking..." at once, so the menu never presents an old result as the answer to the request.
+    fn mark_checking(&self) {
+        if let Ok(mut shared) = self.shared.lock() {
+            shared.checking = true;
+        }
     }
 
     /// A new channel checks again at once, so the menu never shows a result for the old channel.
     pub fn set_channel(&self, channel: UpdateChannel) {
+        self.mark_checking();
         let _ = self.tx.send(Request::Channel(channel));
     }
 
@@ -161,7 +168,9 @@ fn check_once(
 
 /// Starts the update script in a visible PowerShell window. The script waits for this process to end and
 /// verifies the installer's SHA-256 before it starts the normal (interactive) installer.
-pub fn launch() -> Result<(), String> {
+/// `channel` is the offered release's own channel: the script resolves Stable, or the newest release
+/// including pre-releases, which is what the feed offered for RC and Beta.
+pub fn launch(channel: Channel) -> Result<(), String> {
     let root = env::var_os("SystemRoot").ok_or("SystemRoot is unavailable")?;
     let powershell = PathBuf::from(root).join(r"System32\WindowsPowerShell\v1.0\powershell.exe");
     let script = env::temp_dir().join(format!("update-atlassoc-{}.ps1", process::id()));
@@ -171,10 +180,9 @@ pub fn launch() -> Result<(), String> {
         .arg(&script)
         .args([
             "-Channel",
-            if is_prerelease(IDENTITY) {
-                "beta"
-            } else {
-                "stable"
+            match channel {
+                Channel::Stable => "stable",
+                Channel::Rc | Channel::Beta => "beta",
             },
         ])
         .arg("-Silent")
