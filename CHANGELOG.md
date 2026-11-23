@@ -1,3 +1,7 @@
+## AtlasSOC Desktop 0.8.0-rc.2 — unreleased
+
+- Spread sampled real observation arcs across incoming batches in Realtime mode, with at most one second of visual delay; receipt counters and source timestamps remain unchanged.
+
 ## AtlasSOC Desktop 0.8.0-rc.1 — release candidate 1, 16 November 2026, build 15
 
 - Pre-release (not the latest stable) for Windows x64 (installer and portable ZIP, unsigned) and macOS 14+. No Linux build.
