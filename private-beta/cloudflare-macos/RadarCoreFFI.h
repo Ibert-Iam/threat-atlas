@@ -1,6 +1,7 @@
 // Shared Rust core (crates/core) entry points for the standalone SOC Radar view.
 #include <stddef.h>
 #include <stdint.h>
+#include "../../crates/core/include/threat_atlas_update.h"
 
 void *ta_radar_new(void);
 // 0 when the Cloudflare response body was accepted; -1 when rejected (prior data kept).

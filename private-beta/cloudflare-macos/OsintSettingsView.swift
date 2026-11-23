@@ -92,9 +92,7 @@ struct OsintSettingsView: View {
                 Button("Where the money goes (opens GitHub)…") { NSWorkspace.shared.open(supportInfoURL) }
             }
             Section("Updates") {
-                Text("Installed: AtlasSOC \(version). Download the version for your Mac from the official releases page.")
-                    .font(.callout).foregroundStyle(.secondary)
-                Button("Open release downloads…") { NSWorkspace.shared.open(releasesURL) }
+                UpdateSection()
             }
         }
         .formStyle(.grouped)
