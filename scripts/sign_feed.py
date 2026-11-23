@@ -4,14 +4,16 @@
     python3 -I scripts/sign_feed.py FEED.json --out-dir DIR [--delegations docs/feed-signing-delegations.json]
 
 1. Validates FEED.json with scripts/update_feed.py (hashes, URLs, channel pointers, withdrawn tags).
-2. Requires a `generated_at` timestamp (the apps' rollback guard uses it).
+2. Requires a `generated_at` field; its exact rules (timezone, at most 24 h ahead) are checked by the apps' own
+   acceptance path in step 5, not by a looser Python parser.
 3. Copies the unexpired delegations into the feed as `signing_keys` and refuses to sign when none is valid;
    warns when the newest one expires within RENEW_DAYS.
-4. Writes DIR/feed.json and asks the publisher's signer for DIR/feed.json.sig. The signer is the
+4. Writes feed.json in a fresh staging folder next to DIR and asks the publisher's signer for feed.json.sig. The signer is the
    Keychain-backed tool on the publisher's Mac (ATLAS_FEED_SIGNER, default ~/.atlas-feed-signing/atlas-feed-key);
    no key material passes through this script.
-5. Verifies the result with the apps' own Rust code (`cargo run --example verify_feed`) and deletes both
-   outputs if that fails.
+5. Verifies the staged pair with the apps' own acceptance path (`cargo run --example verify_feed`, which calls
+   `update_check::accept_feed`). Only after full success does it replace DIR/feed.json and DIR/feed.json.sig;
+   on any failure (signer or cargo missing, non-zero exit, rejected feed) the last good pair in DIR is untouched.
 6. Prints a log line (feed SHA-256, time, key id) for the publisher's private handover.
 
 Standard library only. Signs only Threat Atlas / AtlasSOC feed.json, never anything else.
@@ -23,8 +25,10 @@ import importlib.util
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
+import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RENEW_DAYS = 21
@@ -50,11 +54,8 @@ def prepare(feed, delegations, today):
     errors = update_feed.validate(feed)
     if errors:
         raise ValueError("feed does not validate: " + "; ".join(errors))
-    stamp = feed.get("generated_at")
-    try:
-        dt.datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
-    except ValueError:
-        raise ValueError("feed has no valid generated_at") from None
+    if not isinstance(feed.get("generated_at"), str):
+        raise ValueError("feed has no generated_at (its format is checked by the apps' verifier)")
     keys = usable_delegations(delegations, today)
     if not keys:
         raise ValueError("no unexpired delegation: the owner must sign a new one first")
@@ -87,34 +88,58 @@ def main(argv=None):
 
     out = pathlib.Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)
+    stage = pathlib.Path(tempfile.mkdtemp(prefix=".sign-staging-", dir=out))
+    try:
+        staged_feed, staged_sig = stage / "feed.json", stage / "feed.json.sig"
+        staged_feed.write_text(json.dumps(signed, indent=2, ensure_ascii=False) + "\n")
+        ok, detail = run_signer(staged_feed)
+        if not ok:
+            print("REFUSED: signer failed: " + detail, file=sys.stderr)
+            return 1
+        staged_sig.write_text(detail + "\n")
+        ok, detail = run_verifier(staged_feed, staged_sig)
+        if not ok:
+            print("REFUSED: the apps would reject this feed: " + detail, file=sys.stderr)
+            return 1
+        # Full success: replace the published pair. Each os.replace is atomic; the signature goes last so a
+        # reader never sees a new signature next to an old feed.
+        os.replace(staged_feed, out / "feed.json")
+        os.replace(staged_sig, out / "feed.json.sig")
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)
+
     feed_path, sig_path = out / "feed.json", out / "feed.json.sig"
-    feed_path.write_text(json.dumps(signed, indent=2, ensure_ascii=False) + "\n")
-
-    signer = os.environ.get("ATLAS_FEED_SIGNER", str(DEFAULT_SIGNER))
-    result = subprocess.run([signer, "sign-feed", str(feed_path)], capture_output=True, text=True)
-    if result.returncode != 0 or not result.stdout.startswith("ed25519 "):
-        feed_path.unlink(missing_ok=True)
-        print("REFUSED: signer failed: " + result.stderr.strip(), file=sys.stderr)
-        return 1
-    sig_path.write_text(result.stdout.strip() + "\n")
-
-    check = subprocess.run(
-        ["cargo", "run", "-q", "--locked", "-p", "threat-atlas-core", "--example", "verify_feed", "--",
-         str(feed_path), str(sig_path)],
-        cwd=ROOT, capture_output=True, text=True)
-    if check.returncode != 0:
-        feed_path.unlink(missing_ok=True)
-        sig_path.unlink(missing_ok=True)
-        print("REFUSED: the apps would reject this feed: " + (check.stderr or check.stdout).strip(), file=sys.stderr)
-        return 1
-
     digest = hashlib.sha256(feed_path.read_bytes()).hexdigest()
     key_id = sig_path.read_text().split()[1]
     when = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     print(f"SIGNED feed sha256={digest} generated_at={signed['generated_at']} key={key_id} at={when}")
-    print(check.stdout.strip())
+    print(detail)
     return 0
 
+
+def run_signer(feed_path):
+    """(ok, signature line or error). Never raises: a missing signer is a refusal, not a crash."""
+    signer = os.environ.get("ATLAS_FEED_SIGNER", str(DEFAULT_SIGNER))
+    try:
+        result = subprocess.run([signer, "sign-feed", str(feed_path)], capture_output=True, text=True)
+    except OSError as error:
+        return False, f"cannot run signer: {error}"
+    line = result.stdout.strip()
+    if result.returncode != 0 or not line.startswith("ed25519 "):
+        return False, (result.stderr.strip() or "no signature line")
+    return True, line
+
+
+def run_verifier(feed_path, sig_path):
+    """(ok, verifier output). The apps' own acceptance path; never raises."""
+    try:
+        check = subprocess.run(
+            ["cargo", "run", "-q", "--locked", "-p", "threat-atlas-core", "--example", "verify_feed", "--",
+             str(feed_path), str(sig_path)],
+            cwd=ROOT, capture_output=True, text=True)
+    except OSError as error:
+        return False, f"cannot run verifier: {error}"
+    return check.returncode == 0, (check.stdout if check.returncode == 0 else (check.stderr or check.stdout)).strip()
 
 if __name__ == "__main__":
     sys.exit(main())
