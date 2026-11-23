@@ -15,6 +15,8 @@ tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
 tiny-skia = "0.12"
 fontdue = "0.9"
 sha2 = "0.10"
+# Ed25519 feed signature check; same ring that rustls already uses (no new crate).
+ring = "0.17"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 webpki-roots = "1.0"
 flate2 = "1"
