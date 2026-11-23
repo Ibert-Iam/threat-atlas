@@ -25,7 +25,7 @@ pub enum Dismiss {
     /// Pointer movement, a click or a key press ends the saver.
     #[default]
     AnyInput,
-    /// Pointer movement is ignored; a click or a key press ends the saver.
+    /// Pointer movement and mouse clicks are ignored; only a key press ends the saver (Robert, #33, 23 Nov 2026).
     KeysOnly,
 }
 impl Dismiss {
@@ -39,10 +39,10 @@ impl Dismiss {
         }
     }
 
-    /// Whether this input ends the saver. `moved` is pointer movement beyond the jitter threshold, `pressed` a new
-    /// key or mouse-button press.
-    pub fn ends_saver(self, moved: bool, pressed: bool) -> bool {
-        pressed || (moved && self == Self::AnyInput)
+    /// Whether this input ends the saver. `moved` is pointer movement beyond the jitter threshold, `clicked` a new
+    /// mouse-button press and `key` a new keyboard key press.
+    pub fn ends_saver(self, moved: bool, clicked: bool, key: bool) -> bool {
+        key || ((moved || clicked) && self == Self::AnyInput)
     }
 }
 
@@ -253,14 +253,19 @@ mod tests {
     }
 
     #[test]
-    fn keys_only_ignores_movement_but_not_presses() {
-        assert!(Dismiss::AnyInput.ends_saver(true, false));
-        assert!(Dismiss::AnyInput.ends_saver(false, true));
-        assert!(!Dismiss::AnyInput.ends_saver(false, false));
-        assert!(!Dismiss::KeysOnly.ends_saver(true, false));
-        assert!(Dismiss::KeysOnly.ends_saver(false, true));
-        assert!(Dismiss::KeysOnly.ends_saver(true, true));
-        assert!(!Dismiss::KeysOnly.ends_saver(false, false));
+    fn keys_only_ignores_movement_and_clicks_but_not_keys() {
+        // Any input: movement, a click or a key each end the saver.
+        assert!(Dismiss::AnyInput.ends_saver(true, false, false));
+        assert!(Dismiss::AnyInput.ends_saver(false, true, false));
+        assert!(Dismiss::AnyInput.ends_saver(false, false, true));
+        assert!(!Dismiss::AnyInput.ends_saver(false, false, false));
+        // Keys only: movement and clicks are ignored, alone or together; a key always ends it.
+        assert!(!Dismiss::KeysOnly.ends_saver(true, false, false));
+        assert!(!Dismiss::KeysOnly.ends_saver(false, true, false));
+        assert!(!Dismiss::KeysOnly.ends_saver(true, true, false));
+        assert!(Dismiss::KeysOnly.ends_saver(false, false, true));
+        assert!(Dismiss::KeysOnly.ends_saver(true, true, true));
+        assert!(!Dismiss::KeysOnly.ends_saver(false, false, false));
     }
 
     #[test]
