@@ -23,6 +23,7 @@ pub mod saver;
 pub mod saver_config;
 pub mod saver_ffi;
 pub mod update;
+pub mod update_check;
 pub mod update_feed;
 use feed::{Feed, Snapshot};
 use std::sync::Arc;

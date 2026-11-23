@@ -89,7 +89,8 @@ Rules:
 - Signed feed message: the ASCII bytes `threat-atlas-feed-v1` plus a newline, followed by the exact bytes of `feed.json`.
 - Delegations: top-level `"signing_keys": [{"key": "<64 hex>", "expires": "YYYY-MM-DD", "recovery_signature": "<128 hex>"}]` (at most 4). The recovery key signs `threat-atlas-signing-key-v1` plus a newline, followed by the 32 key bytes and the 10 ASCII bytes of `expires`. A delegation is valid up to and including its `expires` day (UTC). Expired ones are ignored. A malformed or wrongly signed one, or one reaching more than 400 days ahead, rejects the whole feed.
 - Accepted feed signers: the recovery key (emergency) and delegated keys that have not expired. The two context strings stop a feed signature from ever counting as a delegation.
-- Rollback (WP2): the app stores the newest accepted `generated_at` and rejects any older feed, so an attacker can't serve an old, validly signed feed.
+- Rollback (WP2, `crates/core/src/update_check.rs`): the app stores the newest accepted `generated_at` and rejects any older feed, so an attacker can't serve an old, validly signed feed. A feed stamped more than 24 hours in the future is refused too, so a mis-stamped feed can't lock out later ones.
+- One check for every Settings view (WP2, `update_check::check`): no trust root → "unavailable"; then signature, feed checks, timestamp and rollback; then withdrawn banner, newer version, or up to date. The host only downloads the two files and saves the small state file (last check, last success, last result, rollback mark).
 - Until R1 the apps contain **no** trusted key (`official_trust_root()` returns `None`), so feed-based updates stay unavailable rather than unverified.
 
 ## 5. Keeping the feed maintained
