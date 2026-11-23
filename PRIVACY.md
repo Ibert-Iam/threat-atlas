@@ -86,7 +86,7 @@ Recipients when a source is enabled:
 - **Keyed sources:** abuse.ch ThreatFox/URLhaus, AlienVault OTX and SSLMate Cert Spotter use the user's own key, read from the macOS Keychain or Windows Credential Manager and sent only to that provider. SSLMate also receives the watched domain names. Keys are never logged, shipped or uploaded.
 - **Not part of the saver:** click-only lookups (Shodan InternetDB and AbuseIPDB), key entry and consent dialogs remain in AtlasSOC. The saver only displays data from the sources that are already enabled in AtlasSOC Settings.
 
-Received data is public telemetry or aggregates, kept in bounded memory for display and discarded when the process ends. The saver never fetches, resolves or connects to a URL, domain or address taken from threat data. Provider terms and privacy policies apply to each request.
+Received data is public telemetry or aggregates. It is kept in bounded memory for display and may be cached locally in the app data folder (`osint-cache.json`) to respect provider refresh intervals; it is not uploaded. Removing the app data folder clears the cache. The saver never fetches, resolves or connects to a URL, domain or address taken from threat data. Provider terms and privacy policies apply to each request.
 
 The short on-screen attribution lines and the full per-source notice list are in [docs/SAVER-ATTRIBUTION.md](docs/SAVER-ATTRIBUTION.md). If the saver's network behaviour changes, this section and that list must be updated before release.
 
