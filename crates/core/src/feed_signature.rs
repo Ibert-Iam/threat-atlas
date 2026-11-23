@@ -42,10 +42,21 @@ pub struct TrustRoot {
     pub recovery: [u8; 32],
 }
 
-/// The key built into release builds. `None` until the owner has created the recovery key (R1): callers
-/// must then treat feed-based updates as unavailable, never as "accept anything".
+/// The owner's offline recovery public key (R1), created by Robert on 23 Nov 2026 with OpenSSL Ed25519.
+/// Key id `4a52c7c6add9e830`. The private key never leaves the owner: an encrypted file stored as a
+/// Document in his 1Password (verified byte for byte), passphrase on paper. Changing this constant needs an
+/// owner decision and a new app version.
+pub const RECOVERY_PUBLIC_KEY: [u8; 32] = [
+    0xf4, 0xc7, 0x63, 0xc7, 0xc2, 0x41, 0xf9, 0xcb, 0xed, 0xaa, 0xf6, 0xc5, 0x28, 0x10, 0x73, 0xc9,
+    0x7e, 0x52, 0xb5, 0xea, 0xce, 0x00, 0xc6, 0x38, 0x59, 0x25, 0xa7, 0x72, 0xc6, 0x37, 0xbf, 0xcc,
+];
+
+/// The key built into release builds. Callers that get `None` must treat feed-based updates as
+/// unavailable, never as "accept anything" (that was the state before R1).
 pub fn official_trust_root() -> Option<TrustRoot> {
-    None
+    Some(TrustRoot {
+        recovery: RECOVERY_PUBLIC_KEY,
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -254,8 +265,46 @@ mod tests {
     }
 
     #[test]
-    fn official_root_is_absent_until_r1() {
-        assert_eq!(official_trust_root(), None);
+    fn official_root_is_the_owners_r1_key() {
+        let root = official_trust_root().expect("R1 is built in");
+        // Pinned to the value Robert printed on 23 Nov 2026; a silent change here must fail the build.
+        assert_eq!(
+            hex(&root.recovery),
+            "f4c763c7c241f9cbedaaf6c5281073c97e52b5eace00c6385925a772c637bfcc"
+        );
+        assert_eq!(key_id(&root.recovery), "4a52c7c6add9e830");
+        // A valid Ed25519 point: ring rejects malformed public keys at verification time, so check that a
+        // garbage signature fails as BadSignature (key accepted) rather than anything else.
+        let feed = br#"{"schema_version":1}"#;
+        let sig = format!("ed25519 4a52c7c6add9e830 {}", "00".repeat(64));
+        assert_eq!(
+            verify_feed(feed, sig.as_bytes(), &root, date(2026, 11, 23)),
+            Err(SignatureError::BadSignature)
+        );
+    }
+
+    #[test]
+    fn the_real_first_delegation_verifies_with_the_built_in_key() {
+        // Signed by Robert with OpenSSL on 23 Nov 2026: R1 delegates CL's feed signing key until 2027-02-21.
+        // Proves OpenSSL (owner side) and ring (app side) agree on the exact message bytes.
+        let cl_key: [u8; 32] =
+            unhex("1b0f14750dc683b348fa728ea2921ea287291d03d7b0b555b3c22036d57c0c8e").unwrap();
+        let sig: [u8; 64] = unhex(concat!(
+            "8771d9d28e8c73e4fc31c66cb28a3abc7d599dccf0955c2546618725adeb93ef",
+            "96c297e5671e97eb5930fc8a8e10b1fd9435212664a608fda90d597a75aa8e0b"
+        ))
+        .unwrap();
+        assert_eq!(key_id(&cl_key), "524c828be6e1600b");
+        let verifier = UnparsedPublicKey::new(&ED25519, RECOVERY_PUBLIC_KEY);
+        assert!(verifier
+            .verify(&delegation_message(&cl_key, "2027-02-21"), &sig)
+            .is_ok());
+        assert!(
+            verifier
+                .verify(&delegation_message(&cl_key, "2027-02-22"), &sig)
+                .is_err(),
+            "the date is covered by the signature"
+        );
     }
 
     #[test]

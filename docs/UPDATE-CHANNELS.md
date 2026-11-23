@@ -91,7 +91,7 @@ Rules:
 - Accepted feed signers: the recovery key (emergency) and delegated keys that have not expired. The two context strings stop a feed signature from ever counting as a delegation.
 - Rollback (WP2, `crates/core/src/update_check.rs`): the app stores the newest accepted `generated_at` and rejects any older feed, so an attacker can't serve an old, validly signed feed. A feed stamped more than 24 hours in the future is refused too, so a mis-stamped feed can't lock out later ones.
 - One check for every Settings view (WP2, `update_check::check`): no trust root → "unavailable"; then signature, feed checks, timestamp and rollback; then withdrawn banner, newer version, or up to date. The host only downloads the two files and saves the small state file (last check, last success, last result, rollback mark).
-- Until R1 the apps contain **no** trusted key (`official_trust_root()` returns `None`), so feed-based updates stay unavailable rather than unverified.
+- **R1 done 23 Nov 2026:** the owner's recovery public key `f4c763c7c241f9cbedaaf6c5281073c97e52b5eace00c6385925a772c637bfcc` (key id `4a52c7c6add9e830`) is built in as `RECOVERY_PUBLIC_KEY`. The private key is an encrypted file stored as a Document in the owner's 1Password (verified byte for byte before the local copy was deleted); the passphrase is on paper. The first delegation (CL key `524c828be6e1600b`, until 2027-02-21) is signed and checked by a test. A first attempt earlier that day lost its private key before use and was never trusted. Before this change, `official_trust_root()` returned `None` and feed updates were unavailable.
 
 ## 5. Keeping the feed maintained
 
