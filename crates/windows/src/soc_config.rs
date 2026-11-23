@@ -58,7 +58,7 @@ impl Theme {
 pub enum SaverDismiss {
     #[default]
     Any,
-    /// Mouse movement is ignored; a key press or a click ends the saver. Serialised as `"keys"`, the value
+    /// Mouse movement and clicks are ignored; only a key press ends the saver. Serialised as `"keys"`, the value
     /// `threat_atlas_core::saver_config::Dismiss::KEYS_ONLY_VALUE` reads.
     Keys,
 }

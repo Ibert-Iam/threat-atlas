@@ -359,14 +359,20 @@ pub fn run() -> Result<(), Box<dyn Error>> {
                 unsafe {
                     GetCursorPos(&mut point);
                 }
-                let mut pressed = false;
+                let (mut clicked, mut key_pressed) = (false, false);
                 for (key, previous) in previous_keys.iter_mut().enumerate().skip(1) {
                     let down = unsafe { GetAsyncKeyState(key as i32) } < 0;
-                    pressed |= down && !*previous;
+                    if down && !*previous {
+                        if is_mouse_button(key) {
+                            clicked = true;
+                        } else {
+                            key_pressed = true;
+                        }
+                    }
                     *previous = down;
                 }
                 let moved = (point.x - origin.x).abs() > 5 || (point.y - origin.y).abs() > 5;
-                if dismiss.ends_saver(moved, pressed) {
+                if dismiss.ends_saver(moved, clicked, key_pressed) {
                     *flow = ControlFlow::Exit;
                     return;
                 }
@@ -425,9 +431,15 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     });
 }
 
+/// Virtual-key codes that are mouse buttons, not keyboard keys: VK_LBUTTON, VK_RBUTTON, VK_MBUTTON, VK_XBUTTON1 and
+/// VK_XBUTTON2. 0x03 is VK_CANCEL (Ctrl+Break), a keyboard key.
+fn is_mouse_button(vk: usize) -> bool {
+    matches!(vk, 0x01 | 0x02 | 0x04 | 0x05 | 0x06)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::scaled_frame_layout;
+    use super::{is_mouse_button, scaled_frame_layout};
     use threat_atlas_core::{HEIGHT, WIDTH};
 
     fn mode(args: &[&str]) -> Result<super::Mode, String> {
@@ -512,5 +524,16 @@ mod tests {
         assert_eq!(scaled_frame_layout(1024, 768), (1024, 640, 0, 64));
         assert_eq!(scaled_frame_layout(3440, 1440), (2304, 1440, 568, 0));
         assert_eq!(scaled_frame_layout(3840, 2160), (3456, 2160, 192, 0));
+    }
+
+    #[test]
+    fn mouse_buttons_are_split_from_keyboard_keys() {
+        for vk in [0x01, 0x02, 0x04, 0x05, 0x06] {
+            assert!(is_mouse_button(vk), "{vk:#x}");
+        }
+        // VK_CANCEL, Backspace, Enter, Esc, Space, A and F1 stay keys.
+        for vk in [0x03, 0x08, 0x0D, 0x1B, 0x20, 0x41, 0x70] {
+            assert!(!is_mouse_button(vk), "{vk:#x}");
+        }
     }
 }
