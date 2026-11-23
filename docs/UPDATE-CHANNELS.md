@@ -82,6 +82,14 @@ Rules:
 - **Owner name:** the GitHub account was renamed from `ibert-ai` to `Ibert-Iam` on 16 November 2026. Only `Ibert-Iam` is accepted. The old name is an empty reserved organisation (so nobody else can claim it) and every validator rejects it explicitly; old URLs still redirect, but an updater must never trust a redirect target it did not pin. Shipped 0.4.x screensaver updaters pin the old path and therefore reject the new URLs (known limit of already released versions).
 - **Decided:** sign `feed.json` with a detached Ed25519 signature (public keys built into the apps) so a compromised branch cannot redirect users. See section 10, decision 2, for who holds the keys and the rotation rule. Without it, anyone with push rights to the branch controls what users are offered.
 
+**Signature format, version 1** (client check implemented in `crates/core/src/feed_signature.rs`, 23 Nov 2026; the signing script is still WP1):
+
+- `feed.json.sig` next to `feed.json`: one line `ed25519 <key-id> <signature>` (optional trailing newline, nothing else). `key-id` = first 16 lowercase hex characters of SHA-256 of the 32-byte public key; `signature` = 128 lowercase hex characters.
+- Signed message: the ASCII bytes `threat-atlas-feed-v1` plus a newline, followed by the exact bytes of `feed.json`.
+- Key rotation without a new app version: top-level `"signing_keys": [{"key": "<64 hex>", "recovery_signature": "<128 hex>"}]` (at most 4). Each `recovery_signature` is the recovery key's signature over `threat-atlas-signing-key-v1` plus a newline, followed by the 32 key bytes. One bad entry rejects the whole feed.
+- Accepted signers: the built-in signing keys, the recovery key, and rotated keys with a valid recovery signature. The two context strings stop a feed signature from ever counting as a key signature.
+- Until R1 the apps contain **no** trusted keys (`official_trust_root()` returns `None`), so feed-based updates stay unavailable rather than unverified.
+
 ## 5. Keeping the feed maintained
 
 - A script `scripts/update-feed.py` generates and validates the feed from the GitHub release metadata and the published `SHA256SUMS` file. It refuses entries whose asset is missing, whose hash differs from the one downloaded back, or whose tag does not exist.

@@ -2333,6 +2333,7 @@ dependencies = [
  "flate2",
  "fontdue",
  "jiff",
+ "ring",
  "rustls",
  "serde",
  "serde_json",
