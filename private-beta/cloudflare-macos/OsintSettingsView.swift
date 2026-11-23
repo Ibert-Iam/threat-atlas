@@ -92,9 +92,9 @@ struct OsintSettingsView: View {
                 Button("Where the money goes (opens GitHub)…") { NSWorkspace.shared.open(supportInfoURL) }
             }
             Section("Updates") {
-                Text("Installed: AtlasSOC \(version). This beta is not Developer ID signed yet, so macOS may ask for approval the first time you open a new version.")
+                Text("Installed: AtlasSOC \(version). Download the version for your Mac from the official releases page.")
                     .font(.callout).foregroundStyle(.secondary)
-                Button("Check for a newer version (opens GitHub releases)…") { NSWorkspace.shared.open(releasesURL) }
+                Button("Open release downloads…") { NSWorkspace.shared.open(releasesURL) }
             }
         }
         .formStyle(.grouped)

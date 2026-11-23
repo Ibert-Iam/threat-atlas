@@ -18,6 +18,34 @@ const MAX_DOMAIN_BYTES: usize = 253;
 /// One key (or none) per source, in registry order.
 pub type ResolvedKeys = Vec<(Source, Option<String>)>;
 
+/// What ends the full-screen saver. Stored by AtlasSOC as `"saver_dismiss": "keys"`; anything else, a missing
+/// field or a missing/corrupt file is [`Dismiss::AnyInput`], today's behaviour.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Dismiss {
+    /// Pointer movement, a click or a key press ends the saver.
+    #[default]
+    AnyInput,
+    /// Pointer movement and mouse clicks are ignored; only a key press ends the saver (Robert, #33, 23 Nov 2026).
+    KeysOnly,
+}
+impl Dismiss {
+    /// The value AtlasSOC writes for keys-only.
+    pub const KEYS_ONLY_VALUE: &'static str = "keys";
+
+    fn from_value(value: Option<&serde_json::Value>) -> Self {
+        match value.and_then(serde_json::Value::as_str) {
+            Some(Self::KEYS_ONLY_VALUE) => Self::KeysOnly,
+            _ => Self::AnyInput,
+        }
+    }
+
+    /// Whether this input ends the saver. `moved` is pointer movement beyond the jitter threshold, `clicked` a new
+    /// mouse-button press and `key` a new keyboard key press.
+    pub fn ends_saver(self, moved: bool, clicked: bool, key: bool) -> bool {
+        key || ((moved || clicked) && self == Self::AnyInput)
+    }
+}
+
 /// What the saver took from the file.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SaverSettings {
@@ -25,6 +53,8 @@ pub struct SaverSettings {
     pub enabled_sources: Vec<String>,
     /// Domains watched in the certificate logs.
     pub watch_domains: Vec<String>,
+    /// What ends the saver. A bad value never turns sources off; it only falls back to [`Dismiss::AnyInput`].
+    pub dismiss: Dismiss,
 }
 
 /// Read-only credential lookup, implemented by the host (Windows Credential Manager, macOS Keychain, ...).
@@ -87,6 +117,7 @@ impl SaverSettings {
         Self {
             enabled_sources: enabled,
             watch_domains: watch,
+            dismiss: Dismiss::from_value(value.get("saver_dismiss")),
         }
     }
 
@@ -202,6 +233,42 @@ mod tests {
     }
 
     #[test]
+    fn dismissal_defaults_to_any_input_and_reads_keys_only() {
+        assert_eq!(SaverSettings::off().dismiss, Dismiss::AnyInput);
+        assert_eq!(
+            SaverSettings::parse(br#"{"schema_version":1}"#).dismiss,
+            Dismiss::AnyInput
+        );
+        assert_eq!(SaverSettings::parse(b"not json").dismiss, Dismiss::AnyInput);
+        for other in [r#""any""#, r#""KEYS""#, "true", "1", r#"["keys"]"#, "null"] {
+            let json = format!(r#"{{"enabled_sources":["cisa-kev"],"saver_dismiss":{other}}}"#);
+            let s = SaverSettings::parse(json.as_bytes());
+            assert_eq!(s.dismiss, Dismiss::AnyInput, "{other}");
+            // A bad dismissal value does not cost the user their sources.
+            assert_eq!(s.enabled_sources, vec!["cisa-kev"], "{other}");
+        }
+        let s = SaverSettings::parse(br#"{"enabled_sources":["cisa-kev"],"saver_dismiss":"keys"}"#);
+        assert_eq!(s.dismiss, Dismiss::KeysOnly);
+        assert_eq!(s.enabled_sources, vec!["cisa-kev"]);
+    }
+
+    #[test]
+    fn keys_only_ignores_movement_and_clicks_but_not_keys() {
+        // Any input: movement, a click or a key each end the saver.
+        assert!(Dismiss::AnyInput.ends_saver(true, false, false));
+        assert!(Dismiss::AnyInput.ends_saver(false, true, false));
+        assert!(Dismiss::AnyInput.ends_saver(false, false, true));
+        assert!(!Dismiss::AnyInput.ends_saver(false, false, false));
+        // Keys only: movement and clicks are ignored, alone or together; a key always ends it.
+        assert!(!Dismiss::KeysOnly.ends_saver(true, false, false));
+        assert!(!Dismiss::KeysOnly.ends_saver(false, true, false));
+        assert!(!Dismiss::KeysOnly.ends_saver(true, true, false));
+        assert!(Dismiss::KeysOnly.ends_saver(false, false, true));
+        assert!(Dismiss::KeysOnly.ends_saver(true, true, true));
+        assert!(!Dismiss::KeysOnly.ends_saver(false, false, false));
+    }
+
+    #[test]
     fn watch_domains_are_capped() {
         let list: Vec<String> = (0..30).map(|i| format!("\"d{i}.example\"")).collect();
         let json = format!(r#"{{"watch_domains":[{}]}}"#, list.join(","));
@@ -234,6 +301,7 @@ mod tests {
         let s = SaverSettings {
             enabled_sources: vec!["cisa-kev".into(), "abuseipdb".into()],
             watch_domains: Vec::new(),
+            dismiss: Dismiss::AnyInput,
         };
         let mut applier = Applier::default();
         assert!(applier.apply(&worker, s.clone(), &spy));
@@ -250,6 +318,7 @@ mod tests {
         let s2 = SaverSettings {
             enabled_sources: vec!["abuseipdb".into()],
             watch_domains: Vec::new(),
+            dismiss: Dismiss::AnyInput,
         };
         assert!(applier.apply(&worker, s2, &Other));
     }
@@ -263,6 +332,7 @@ mod tests {
         let on = SaverSettings {
             enabled_sources: vec!["cisa-kev".into(), "abuseipdb".into()],
             watch_domains: vec!["example.org".into(), "example.net".into()],
+            dismiss: Dismiss::AnyInput,
         };
         assert!(applier.apply(&worker, on.clone(), &NoKeys));
         assert_eq!(worker.enabled(), on.enabled_sources);
@@ -270,6 +340,7 @@ mod tests {
         let off = SaverSettings {
             enabled_sources: vec!["cisa-kev".into()],
             watch_domains: vec!["example.org".into()],
+            dismiss: Dismiss::AnyInput,
         };
         assert!(applier.apply(&worker, off, &NoKeys));
         assert_eq!(worker.enabled(), vec!["cisa-kev".to_string()]);

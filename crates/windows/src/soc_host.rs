@@ -1,4 +1,4 @@
-use crate::soc_config::{self, Motion, Settings, Terms, Theme, BUILD, VERSION};
+use crate::soc_config::{self, Motion, SaverDismiss, Settings, Terms, Theme, BUILD, VERSION};
 use crate::soc_osint::{Osint, View as OsintView};
 use crate::soc_radar::Radar;
 use crate::soc_update::{self, Status as UpdateStatus, Updater};
@@ -880,6 +880,17 @@ fn menu(
             );
             AppendMenuW(
                 settings_menu,
+                MF_STRING
+                    | if settings.saver_dismiss == SaverDismiss::Keys {
+                        MF_CHECKED
+                    } else {
+                        0
+                    },
+                60,
+                wide("Screensaver: ignore the mouse (only a key press ends it)").as_ptr(),
+            );
+            AppendMenuW(
+                settings_menu,
                 MF_STRING,
                 38,
                 wide("Sources, licences and attribution").as_ptr(),
@@ -1205,6 +1216,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
                     18 => { if let Some(radar) = &radar { radar.set_token(display.window.hwnd() as HWND); } }
                     19 => { if let Some(radar) = &radar { radar.remove_token(); } }
                     20 => settings.radar_layer = !settings.radar_layer,
+                    60 => settings.saver_dismiss = if settings.saver_dismiss == SaverDismiss::Keys { SaverDismiss::Any } else { SaverDismiss::Keys },
                     16 => *flow = ControlFlow::Exit,
                     21 => {
                         if let Some(update) = updater.as_ref().map(Updater::status) {

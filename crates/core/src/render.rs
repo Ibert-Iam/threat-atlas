@@ -277,7 +277,8 @@ impl Renderer {
         let width = width.max(WIDTH);
         self.pix = Pixmap::new(width, HEIGHT).unwrap();
         self.base = self.pix.clone();
-        self.country_overlay = Pixmap::new(width, HEIGHT).unwrap();
+        // The SOC view paints its country layer into a short-lived pixmap of its own (see `SocView::draw`).
+        self.country_overlay = Pixmap::new(1, 1).unwrap();
         self.wide_dx = (width - WIDTH) as f32;
     }
     /// The theme this renderer was created with.
