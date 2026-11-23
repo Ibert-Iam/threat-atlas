@@ -82,13 +82,15 @@ Rules:
 - **Owner name:** the GitHub account was renamed from `ibert-ai` to `Ibert-Iam` on 16 November 2026. Only `Ibert-Iam` is accepted. The old name is an empty reserved organisation (so nobody else can claim it) and every validator rejects it explicitly; old URLs still redirect, but an updater must never trust a redirect target it did not pin. Shipped 0.4.x screensaver updaters pin the old path and therefore reject the new URLs (known limit of already released versions).
 - **Decided:** sign `feed.json` with a detached Ed25519 signature (public keys built into the apps) so a compromised branch cannot redirect users. See section 10, decision 2, for who holds the keys and the rotation rule. Without it, anyone with push rights to the branch controls what users are offered.
 
-**Signature format, version 1** (client check implemented in `crates/core/src/feed_signature.rs`, 23 Nov 2026; the signing script is still WP1):
+**Signature format, version 1** (client check implemented in `crates/core/src/feed_signature.rs`; revocation design **Option A**, chosen by the owner on 23 Nov 2026; the signing script is still WP1):
 
+- **Trust model:** apps embed **only** the owner's offline recovery key. The publisher's daily signing key is delegated inside the feed, signed by the recovery key **with an expiry date**. A stolen signing key stops working on its own when its delegation expires and is not renewed; no app update is needed. Renewal: the publisher prepares a delegation about every 90 days and the owner signs it offline. The publisher never holds the recovery key.
 - `feed.json.sig` next to `feed.json`: one line `ed25519 <key-id> <signature>` (optional trailing newline, nothing else). `key-id` = first 16 lowercase hex characters of SHA-256 of the 32-byte public key; `signature` = 128 lowercase hex characters.
-- Signed message: the ASCII bytes `threat-atlas-feed-v1` plus a newline, followed by the exact bytes of `feed.json`.
-- Key rotation without a new app version: top-level `"signing_keys": [{"key": "<64 hex>", "recovery_signature": "<128 hex>"}]` (at most 4). Each `recovery_signature` is the recovery key's signature over `threat-atlas-signing-key-v1` plus a newline, followed by the 32 key bytes. One bad entry rejects the whole feed.
-- Accepted signers: the built-in signing keys, the recovery key, and rotated keys with a valid recovery signature. The two context strings stop a feed signature from ever counting as a key signature.
-- Until R1 the apps contain **no** trusted keys (`official_trust_root()` returns `None`), so feed-based updates stay unavailable rather than unverified.
+- Signed feed message: the ASCII bytes `threat-atlas-feed-v1` plus a newline, followed by the exact bytes of `feed.json`.
+- Delegations: top-level `"signing_keys": [{"key": "<64 hex>", "expires": "YYYY-MM-DD", "recovery_signature": "<128 hex>"}]` (at most 4). The recovery key signs `threat-atlas-signing-key-v1` plus a newline, followed by the 32 key bytes and the 10 ASCII bytes of `expires`. A delegation is valid up to and including its `expires` day (UTC). Expired ones are ignored. A malformed or wrongly signed one, or one reaching more than 400 days ahead, rejects the whole feed.
+- Accepted feed signers: the recovery key (emergency) and delegated keys that have not expired. The two context strings stop a feed signature from ever counting as a delegation.
+- Rollback (WP2): the app stores the newest accepted `generated_at` and rejects any older feed, so an attacker can't serve an old, validly signed feed.
+- Until R1 the apps contain **no** trusted key (`official_trust_root()` returns `None`), so feed-based updates stay unavailable rather than unverified.
 
 ## 5. Keeping the feed maintained
 
@@ -134,7 +136,7 @@ Rules:
 1. **Feed location:** a dedicated branch `update-feed` in the public repository (not a file on `main`).
 2. **Feed signature (revised the same day at the owner's request):** `feed.json` is signed with a detached Ed25519 signature, and the **publisher agent (CL) holds the daily signing key**, so feed updates and withdrawals never wait for the owner (for example during the night). Safeguards that go with this:
    - The signing key is generated on the publisher's machine for this one purpose, stored in the macOS Keychain, and never written to the repository, Git handovers, Telegram, logs or command arguments. It signs only `feed.json` for Threat Atlas and AtlasSOC, and is never used for anything else.
-   - Apps embed **two** public keys: the signing key and an offline **recovery key held only by the owner**. A feed update that rotates the signing key must be signed by the recovery key. If the signing key is ever lost or suspected compromised, the owner rotates it without shipping a new app version.
+   - Apps embed only the offline **recovery key held by the owner** (revised 23 Nov 2026, Option A). The signing key reaches apps as an expiring delegation signed by the recovery key; see section 4, "Signature format". If the signing key is ever lost or suspected compromised, the owner rotates it without shipping a new app version.
    - The signing script refuses to sign a feed that fails `scripts/update-feed.py` validation (hashes, URLs, channel pointers, withdrawn tags), and logs each signing (feed hash, time, release tag) in the private handover.
    - Apps reject an unsigned or wrongly signed feed and keep the installed version.
 3. **Default automatic mode on a fresh install:** *Notify me*. "Download and ask" and "Off" stay selectable. Nothing is downloaded in the background by default.
