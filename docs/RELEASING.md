@@ -62,6 +62,13 @@ does not authorize publication.
 5. Upload matching Windows MSI, macOS ZIP, Linux preview archive, source archive and SHA-256 checksums.
    Include the source commit, product version, Mac build, signing/notarization
    status and known acceptance limits in the notes. Verify the public links.
+6. **Update the signed feed** (publisher CL only, docs/UPDATE-CHANNELS.md section 4): run
+   `python3 -I scripts/update_feed.py from-github --out feed.json --keep-from <current feed>`, then
+   `python3 -I scripts/sign_feed.py feed.json --out-dir <dir>` on the publisher's Mac, which signs with the
+   Keychain key and refuses anything the apps would reject. Publish `feed.json` and `feed.json.sig` together
+   on the `update-feed` branch. A release is not "published" in the project's records until the feed points
+   to it. Other agents never sign, edit or push the feed. If the script warns that the delegation expires
+   soon, prepare the renewal for the owner the same day.
 
 The updater accepts stable releases only. Its macOS asset name stays
 `ThreatAtlas-macOS.zip`; Windows uses `ThreatAtlas-<version>-x64.msi`. Source and
