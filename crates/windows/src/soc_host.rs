@@ -1,7 +1,8 @@
 use crate::soc_config::{self, Motion, SaverDismiss, Settings, Terms, Theme, BUILD, VERSION};
 use crate::soc_osint::{Osint, View as OsintView};
 use crate::soc_radar::Radar;
-use crate::soc_update::{self, Status as UpdateStatus, Updater};
+use crate::soc_update::{self, UpdateView, Updater};
+use crate::soc_updates::{self, UpdateChannel};
 use std::{
     error::Error,
     num::NonZeroU32,
@@ -729,7 +730,7 @@ fn menu(
     settings: &Settings,
     paused: bool,
     radar: Option<&Radar>,
-    update: Option<&UpdateStatus>,
+    update: Option<&UpdateView>,
     _osint: Option<&OsintView>,
 ) -> u32 {
     unsafe {
@@ -914,13 +915,7 @@ fn menu(
                 wide("Support the project (voluntary tip on Ko-fi)...").as_ptr(),
             );
             if let Some(update) = update {
-                let enabled = matches!(update, UpdateStatus::Available(_));
-                AppendMenuW(
-                    settings_menu,
-                    MF_STRING | if enabled { 0 } else { MF_GRAYED },
-                    21,
-                    wide(&update.label()).as_ptr(),
-                );
+                updates_menu(settings_menu, settings.update_channel, update);
             }
             AppendMenuW(
                 menu,
@@ -946,11 +941,66 @@ fn menu(
     }
 }
 
+/// Settings → Updates: status, channel, check now, release page, install via the update script.
+unsafe fn updates_menu(parent: HMENU, channel: UpdateChannel, update: &UpdateView) {
+    let menu = CreatePopupMenu();
+    if menu.is_null() {
+        return;
+    }
+    for line in &update.lines {
+        AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, wide(line).as_ptr());
+    }
+    AppendMenuW(menu, MF_SEPARATOR, 0, std::ptr::null());
+    let build = soc_updates::channel_name(soc_updates::installed_channel());
+    let choices = [
+        (
+            61,
+            UpdateChannel::Build,
+            format!("Channel: same as this build ({build})"),
+        ),
+        (62, UpdateChannel::Stable, "Channel: Stable".to_string()),
+        (
+            63,
+            UpdateChannel::Rc,
+            "Channel: Release Candidates".to_string(),
+        ),
+        (
+            64,
+            UpdateChannel::Beta,
+            "Channel: Betas (pre-releases can contain bugs)".to_string(),
+        ),
+    ];
+    for (id, value, label) in choices {
+        let checked = if channel == value { MF_CHECKED } else { 0 };
+        AppendMenuW(menu, MF_STRING | checked, id, wide(&label).as_ptr());
+    }
+    AppendMenuW(menu, MF_SEPARATOR, 0, std::ptr::null());
+    AppendMenuW(menu, MF_STRING, 65, wide("Check for updates now").as_ptr());
+    if let Some(offer) = &update.offer {
+        AppendMenuW(
+            menu,
+            MF_STRING,
+            66,
+            wide(&format!("Open the release page for {}...", offer.version)).as_ptr(),
+        );
+    }
+    AppendMenuW(
+        menu,
+        MF_STRING | if update.newer { 0 } else { MF_GRAYED },
+        21,
+        wide("Install with the update script (closes AtlasSOC)...").as_ptr(),
+    );
+    AppendMenuW(parent, MF_POPUP, menu as usize, wide("Updates").as_ptr());
+}
+
 /// Asks first, then hands over to the update script. Returns true when the app should close.
-fn start_update(window: &Window, update: &UpdateStatus) -> bool {
+fn start_update(window: &Window, update: &UpdateView) -> bool {
+    let Some(offer) = update.offer.as_ref().filter(|_| update.newer) else {
+        return false;
+    };
     let text = format!(
-        "{}\n\nAtlasSOC will close, download the installer from GitHub, check it and replace this version. Windows may ask for approval. The app then opens again and asks you to review the licence for the new version.\n\nContinue?",
-        update.label().trim_end_matches("...")
+        "Update available: {}\n\nAtlasSOC will close, download the installer from GitHub, check it and replace this version. Windows may ask for approval. The app then opens again and asks you to review the licence for the new version.\n\nContinue?",
+        offer.version
     );
     let answer = unsafe {
         MessageBoxW(
@@ -1076,13 +1126,13 @@ pub fn run() -> Result<(), Box<dyn Error>> {
         Some(Feed::shared())
     };
     let radar = (!smoke).then(|| Radar::start(state_dir.clone()));
-    let updater = (!smoke).then(Updater::start);
     let path = state_dir.join("settings.json");
     let (mut settings, warning) = if smoke {
         (Settings::default(), None)
     } else {
         Settings::load(&path)
     };
+    let updater = (!smoke).then(|| Updater::start(&state_dir, settings.update_channel));
     let osint = (!smoke).then(|| {
         crate::soc_osint::set_post(crate::soc_osint::winhttp_post);
         let worker = Osint::start(
@@ -1132,7 +1182,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
                     }
                     WindowEvent::MouseInput { state: ElementState::Released, button: MouseButton::Right, .. } => {
                         let osint_view = osint.as_ref().map(Osint::view);
-                        action = menu(&display.window, &settings, paused, radar.as_ref(), updater.as_ref().map(Updater::status).as_ref(), osint_view.as_ref());
+                        action = menu(&display.window, &settings, paused, radar.as_ref(), updater.as_ref().map(Updater::view).as_ref(), osint_view.as_ref());
                     }
                     WindowEvent::MouseInput { state: ElementState::Released, button: MouseButton::Left, .. } => {
                         if let Some((x, y)) = frame_point(&display.window, cursor, view.width()) {
@@ -1218,8 +1268,17 @@ pub fn run() -> Result<(), Box<dyn Error>> {
                     20 => settings.radar_layer = !settings.radar_layer,
                     60 => settings.saver_dismiss = if settings.saver_dismiss == SaverDismiss::Keys { SaverDismiss::Any } else { SaverDismiss::Keys },
                     16 => *flow = ControlFlow::Exit,
+                    61..=64 => {
+                        settings.update_channel = match action { 62 => UpdateChannel::Stable, 63 => UpdateChannel::Rc, 64 => UpdateChannel::Beta, _ => UpdateChannel::Build };
+                        if let Some(updater) = &updater { updater.set_channel(settings.update_channel); }
+                    }
+                    65 => { if let Some(updater) = &updater { updater.check_now(); } }
+                    66 => {
+                        let page = updater.as_ref().map(Updater::view).and_then(|v| v.offer).and_then(|o| soc_updates::release_page(&o.tag));
+                        if let Some(page) = page { open_url(&display.window, &page); }
+                    }
                     21 => {
-                        if let Some(update) = updater.as_ref().map(Updater::status) {
+                        if let Some(update) = updater.as_ref().map(Updater::view) {
                             if start_update(&display.window, &update) {
                                 *flow = ControlFlow::Exit;
                             }
@@ -1227,7 +1286,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
                     }
                     _ => {}
                 }
-                if action != 0 && action != 15 && action != 16 && action != 21 && action != 27 { dirty = true; }
+                if action != 0 && !matches!(action, 15 | 16 | 21 | 27 | 65 | 66) { dirty = true; }
             }
             Event::MainEventsCleared => {
                 if monitor_check.elapsed() >= Duration::from_secs(2) {
