@@ -13,7 +13,6 @@
 //! stop using the list when it has not changed for 7 days, never fetch a listed domain, show listed names
 //! defanged, and describe a hit as "on the community phishing list", not as proof.
 
-use std::collections::HashSet;
 use std::net::IpAddr;
 
 /// Host for the download.
@@ -95,10 +94,10 @@ fn is_shared_host(name: &str) -> bool {
     SHARED_HOSTS.contains(&name)
 }
 
-/// The listed domains, as 64-bit hashes (about 8 bytes each instead of a string).
+/// The listed domains, as sorted 64-bit hashes: 8 bytes each, about half of what a hash set of the same values takes.
 #[derive(Clone, Debug, Default)]
 pub struct DomainSet {
-    hashes: HashSet<u64>,
+    hashes: Vec<u64>,
     /// Lines that were not comments but could not be used.
     pub skipped: usize,
 }
@@ -114,14 +113,14 @@ impl DomainSet {
 
     /// Is this exact name listed?
     pub fn contains(&self, host: &str) -> bool {
-        normalise_host(host).is_some_and(|h| self.hashes.contains(&fnv1a64(&h)))
+        normalise_host(host).is_some_and(|h| self.has(fnv1a64(&h)))
     }
 
     /// The listed name that matches `host`: the host itself, or a listed parent with at least two labels.
     /// A parent that is a shared hosting service does not match its subdomains. `None` when nothing matches.
     pub fn lookup(&self, host: &str) -> Option<String> {
         let h = normalise_host(host)?;
-        if self.hashes.contains(&fnv1a64(&h)) {
+        if self.has(fnv1a64(&h)) {
             return Some(h);
         }
         let mut rest = h.as_str();
@@ -130,11 +129,15 @@ impl DomainSet {
             if !rest.contains('.') {
                 break;
             }
-            if self.hashes.contains(&fnv1a64(rest)) && !is_shared_host(rest) {
+            if self.has(fnv1a64(rest)) && !is_shared_host(rest) {
                 return Some(rest.to_string());
             }
         }
         None
+    }
+
+    fn has(&self, hash: u64) -> bool {
+        self.hashes.binary_search(&hash).is_ok()
     }
 }
 
@@ -158,13 +161,20 @@ pub fn parse_list(body: &[u8]) -> Result<DomainSet, ListError> {
         first = false;
         match normalise_host(t) {
             Some(h) => {
-                set.hashes.insert(fnv1a64(&h));
-                if set.hashes.len() > MAX_DOMAINS {
+                set.hashes.push(fnv1a64(&h));
+                // Duplicates are removed below; until then allow some slack before giving up.
+                if set.hashes.len() > 2 * MAX_DOMAINS {
                     return Err(ListError::TooManyEntries);
                 }
             }
             None => set.skipped += 1,
         }
+    }
+    set.hashes.sort_unstable();
+    set.hashes.dedup();
+    set.hashes.shrink_to_fit();
+    if set.hashes.len() > MAX_DOMAINS {
+        return Err(ListError::TooManyEntries);
     }
     if set.is_empty() {
         return Err(ListError::NotAList);

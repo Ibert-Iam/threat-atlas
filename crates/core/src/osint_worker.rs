@@ -203,10 +203,9 @@ pub struct LookupView {
 struct Cache {
     kev: Vec<KevWithEpss>,
     kev_updated_ms: u64,
-    /// About 400,000 scores. Kept in its own file (`osint-epss.json`) so the small cache is not rewritten
-    /// with 25 MB every time a source updates; still read from an older cache file.
-    #[serde(skip_serializing)]
-    epss: Vec<EpssScore>,
+    /// The EPSS scores themselves (about 400,000, 25 MB as JSON) live only in their own file (`osint-epss.json`)
+    /// and are never held in memory: the KEV join reads the few it needs from that file. An `epss` list in an older
+    /// cache file is moved to that file once at start.
     epss_updated_ms: u64,
     tor: Vec<IpAddr>,
     tor_updated_ms: u64,
@@ -419,6 +418,36 @@ fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Option<T> {
         return None;
     }
     serde_json::from_slice(&fs::read(path).ok()?).ok()
+}
+
+/// EPSS scores for these KEV entries only, from the saved EPSS file (none when it is missing or unreadable).
+fn kev_scores(epss_file: &Path, entries: &[osint::KevEntry]) -> Vec<EpssScore> {
+    let wanted: std::collections::HashSet<&str> = entries.iter().map(|e| e.cve.as_str()).collect();
+    let Ok(meta) = fs::metadata(epss_file) else {
+        return Vec::new();
+    };
+    if meta.len() > 64 * 1024 * 1024 {
+        return Vec::new();
+    }
+    fs::read(epss_file)
+        .ok()
+        .and_then(|bytes| osint::epss_for(&bytes, &wanted).ok())
+        .unwrap_or_default()
+}
+
+/// Older cache files carried the EPSS list inline. Move it to its own file once, so it is never loaded with the cache.
+fn migrate_epss(cache_path: &Path, epss_file: &Path) {
+    #[derive(Deserialize)]
+    struct Legacy {
+        #[serde(default)]
+        epss: Vec<EpssScore>,
+    }
+    if epss_file.exists() {
+        return;
+    }
+    if let Some(legacy) = read_json::<Legacy>(cache_path).filter(|l| !l.epss.is_empty()) {
+        save(epss_file, &legacy.epss);
+    }
 }
 
 fn save<T: Serialize>(path: &Path, value: &T) {
@@ -784,9 +813,7 @@ fn worker(
     let cache_path = directory.join("osint-cache.json");
     let mut gates: Gates = read_json(&state_path).unwrap_or_default();
     let mut cache: Cache = read_json(&cache_path).unwrap_or_default();
-    if cache.epss.is_empty() {
-        cache.epss = read_json(&directory.join(EPSS_FILE)).unwrap_or_default();
-    }
+    migrate_epss(&cache_path, &directory.join(EPSS_FILE));
     let mut notes: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
     let mut last_internetdb: Option<u64> = None;
     let mut abuse_memory: BTreeMap<String, (u64, CheckResult)> = BTreeMap::new();
@@ -814,10 +841,10 @@ fn worker(
             let saved = validators(&gates, Source::Epss);
             match get(EPSS_HOST, EPSS_PATH, MAX_EPSS_BYTES, &saved) {
                 Ok(Some(fetched)) => {
-                    match gunzip(&fetched.body).and_then(|csv| osint::parse_epss(&csv)) {
-                        Ok(scores) => {
-                            save(&directory.join(EPSS_FILE), &scores);
-                            cache.epss = scores;
+                    match gunzip(&fetched.body).and_then(|csv| osint::epss_csv_to_json(&csv)) {
+                        Ok((json, _count)) => {
+                            let _ = write_atomic(&directory.join(EPSS_FILE), &json);
+                            drop(json);
                             cache.epss_updated_ms = now;
                             remember(&mut gates, Source::Epss, &fetched);
                             gate(&mut gates, Source::Epss).success(now, epss_spec.min_interval_ms);
@@ -851,7 +878,8 @@ fn worker(
             match get(KEV_HOST, KEV_PATH, MAX_KEV_BYTES, &saved) {
                 Ok(Some(fetched)) => match osint::parse_kev(&fetched.body) {
                     Ok(entries) => {
-                        cache.kev = osint::join_kev_epss(entries, cache.epss.clone(), KEV_LIMIT);
+                        let scores = kev_scores(&directory.join(EPSS_FILE), &entries);
+                        cache.kev = osint::join_kev_epss(entries, scores, KEV_LIMIT);
                         cache.kev_updated_ms = now;
                         remember(&mut gates, Source::CisaKev, &fetched);
                         gate(&mut gates, Source::CisaKev).success(now, kev_spec.min_interval_ms);
@@ -1561,6 +1589,50 @@ mod tests {
         let on = vec!["cisa-kev".to_string()];
         assert!(is_enabled(&on, Source::Epss));
         assert!(!is_enabled(&["first-epss".to_string()], Source::CisaKev));
+    }
+
+    #[test]
+    fn kev_join_reads_only_its_scores_from_the_epss_file_and_old_caches_move_there() {
+        let dir = std::env::temp_dir().join(format!("atlas-epss-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let (cache_path, epss_file) = (dir.join("osint-cache.json"), dir.join(EPSS_FILE));
+        let score = |cve: &str, epss| EpssScore {
+            cve: cve.into(),
+            epss,
+            percentile: 0.5,
+        };
+        // An older cache with the list inline: moved to its own file, and the cache itself still loads.
+        let legacy = serde_json::json!({
+            "kev_updated_ms": 7,
+            "epss": [score("CVE-2026-0001", 0.9), score("CVE-2026-0002", 0.1), score("CVE-2020-9999", 0.5)],
+        });
+        fs::write(&cache_path, serde_json::to_vec(&legacy).unwrap()).unwrap();
+        migrate_epss(&cache_path, &epss_file);
+        assert!(epss_file.exists());
+        assert_eq!(read_json::<Cache>(&cache_path).unwrap().kev_updated_ms, 7);
+        let kev: Vec<osint::KevEntry> = serde_json::from_value(serde_json::json!([
+            {"cveID": "CVE-2026-0002"}, {"cveID": "CVE-2026-0001"}, {"cveID": "CVE-2026-0003"}
+        ]))
+        .unwrap();
+        let mut scores = kev_scores(&epss_file, &kev);
+        scores.sort_by(|a, b| a.cve.cmp(&b.cve));
+        assert_eq!(
+            scores,
+            vec![score("CVE-2026-0001", 0.9), score("CVE-2026-0002", 0.1)]
+        );
+        let joined = osint::join_kev_epss(kev.clone(), scores, KEV_LIMIT);
+        assert_eq!(joined[0].kev.cve, "CVE-2026-0001");
+        assert!(joined[2].epss.is_none());
+        // A second start does not overwrite the file, and no file means no scores.
+        fs::write(&epss_file, b"[]").unwrap();
+        migrate_epss(&cache_path, &epss_file);
+        assert!(kev_scores(&epss_file, &kev).is_empty());
+        fs::remove_file(&epss_file).unwrap();
+        fs::write(&cache_path, b"{}").unwrap();
+        migrate_epss(&cache_path, &epss_file);
+        assert!(!epss_file.exists() && kev_scores(&epss_file, &kev).is_empty());
+        let _ = fs::remove_dir_all(&dir);
     }
 
     static CALLS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);

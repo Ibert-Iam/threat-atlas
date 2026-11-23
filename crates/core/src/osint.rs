@@ -362,36 +362,100 @@ pub struct EpssScore {
     pub percentile: f64,
 }
 
+/// The valid rows of the daily EPSS CSV as (cve, epss, percentile), borrowed from the text (comments, the header
+/// and malformed rows are skipped). Nothing is allocated per row.
+pub fn epss_rows(text: &str) -> impl Iterator<Item = (&str, f64, f64)> {
+    text.lines().filter_map(|line| {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') || line.starts_with("cve,") {
+            return None;
+        }
+        let mut parts = line.split(',');
+        let (cve, epss, percentile) = (parts.next()?, parts.next()?, parts.next()?);
+        let (epss, percentile) = (epss.parse::<f64>().ok()?, percentile.parse::<f64>().ok()?);
+        if !cve.starts_with("CVE-") || cve.len() > 32 {
+            return None;
+        }
+        if !(0.0..=1.0).contains(&epss) || !(0.0..=1.0).contains(&percentile) {
+            return None;
+        }
+        Some((cve, epss, percentile))
+    })
+}
+
 /// Parse the daily EPSS CSV (comments and the header are ignored).
 pub fn parse_epss(bytes: &[u8]) -> Result<Vec<EpssScore>, String> {
     let text = std::str::from_utf8(bytes).map_err(|e| format!("EPSS UTF-8: {e}"))?;
-    let mut out = Vec::new();
-    for line in text.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') || line.starts_with("cve,") {
-            continue;
-        }
-        let mut parts = line.split(',');
-        let (Some(cve), Some(epss), Some(percentile)) = (parts.next(), parts.next(), parts.next())
-        else {
-            continue;
-        };
-        let (Ok(epss), Ok(percentile)) = (epss.parse::<f64>(), percentile.parse::<f64>()) else {
-            continue;
-        };
-        if !cve.starts_with("CVE-") || cve.len() > 32 {
-            continue;
-        }
-        if !(0.0..=1.0).contains(&epss) || !(0.0..=1.0).contains(&percentile) {
-            continue;
-        }
-        out.push(EpssScore {
+    Ok(epss_rows(text)
+        .map(|(cve, epss, percentile)| EpssScore {
             cve: cve.to_string(),
             epss,
             percentile,
-        });
+        })
+        .collect())
+}
+
+/// The daily EPSS CSV as the JSON array of [`EpssScore`] that `serde_json` would write for `parse_epss`'s result,
+/// without building the list (about 400,000 scores) in memory. Returns the bytes and the number of scores.
+pub fn epss_csv_to_json(bytes: &[u8]) -> Result<(Vec<u8>, usize), String> {
+    #[derive(Serialize)]
+    struct Row<'a> {
+        cve: &'a str,
+        epss: f64,
+        percentile: f64,
     }
-    Ok(out)
+    let text = std::str::from_utf8(bytes).map_err(|e| format!("EPSS UTF-8: {e}"))?;
+    let mut out = Vec::with_capacity(text.len() + text.len() / 2);
+    out.push(b'[');
+    let mut count = 0;
+    for (cve, epss, percentile) in epss_rows(text) {
+        if count > 0 {
+            out.push(b',');
+        }
+        serde_json::to_writer(
+            &mut out,
+            &Row {
+                cve,
+                epss,
+                percentile,
+            },
+        )
+        .map_err(|e| format!("EPSS JSON: {e}"))?;
+        count += 1;
+    }
+    out.push(b']');
+    Ok((out, count))
+}
+
+/// The scores for `wanted` CVEs only, read from a saved EPSS JSON array. Every other entry is parsed and dropped at
+/// once, so the full list is never held in memory.
+pub fn epss_for(
+    json: &[u8],
+    wanted: &std::collections::HashSet<&str>,
+) -> Result<Vec<EpssScore>, String> {
+    use serde::de::{Deserializer, SeqAccess, Visitor};
+    struct Filter<'w, 'a>(&'w std::collections::HashSet<&'a str>);
+    impl<'de> Visitor<'de> for Filter<'_, '_> {
+        type Value = Vec<EpssScore>;
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("a list of EPSS scores")
+        }
+        fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+            let mut kept = Vec::with_capacity(self.0.len());
+            while let Some(score) = seq.next_element::<EpssScore>()? {
+                if self.0.contains(score.cve.as_str()) {
+                    kept.push(score);
+                }
+            }
+            Ok(kept)
+        }
+    }
+    let mut de = serde_json::Deserializer::from_slice(json);
+    let kept = de
+        .deserialize_seq(Filter(wanted))
+        .map_err(|e| format!("EPSS file: {e}"))?;
+    de.end().map_err(|e| format!("EPSS file: {e}"))?;
+    Ok(kept)
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -608,6 +672,24 @@ mod tests {
         let scores = parse_epss(csv).unwrap();
         assert_eq!(scores.len(), 1);
         assert_eq!(scores[0].cve, "CVE-2026-0001");
+    }
+
+    #[test]
+    fn epss_json_matches_the_parsed_list_and_filters_back() {
+        let csv = b"#model\ncve,epss,percentile\nCVE-2026-0001,0.91,0.99\nCVE-2026-0002,1.2,0.5\nbad\nCVE-2025-1111,0.00042,0.1\nCVE-2024-7,0.5,0.75\n";
+        let (json, count) = epss_csv_to_json(csv).unwrap();
+        assert_eq!(count, 3);
+        assert_eq!(json, serde_json::to_vec(&parse_epss(csv).unwrap()).unwrap());
+        let wanted: std::collections::HashSet<&str> = ["CVE-2025-1111", "CVE-2099-0000"].into();
+        let kept = epss_for(&json, &wanted).unwrap();
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].cve, "CVE-2025-1111");
+        assert_eq!(kept[0].epss, 0.00042);
+        let (empty, n) = epss_csv_to_json(b"cve,epss,percentile\n").unwrap();
+        assert_eq!((empty.as_slice(), n), (b"[]".as_slice(), 0));
+        assert!(epss_for(&empty, &wanted).unwrap().is_empty());
+        assert!(epss_for(b"{\"not\":\"a list\"}", &wanted).is_err());
+        assert!(epss_csv_to_json(&[0xff, 0xfe]).is_err());
     }
 
     #[test]

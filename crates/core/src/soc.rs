@@ -265,8 +265,12 @@ pub struct SocView {
     list_ms: u64,
     overlay_ms: u64,
     overlay_key: Option<OverlayKey>,
-    /// Map + tints + outlines + rings, rebuilt with the overlay; each frame starts from a copy.
-    composed: Pixmap,
+    /// Map + tints + outlines + rings, rebuilt with the overlay. Only the rows where it differs from the
+    /// renderer's base are kept (`composed_rows`, starting at frame row `composed_top`); each frame starts from
+    /// the base with those rows copied over. Outside them the composed frame equals the base, so this is
+    /// pixel-identical to keeping the full frame, at a fraction of the memory.
+    composed_rows: Vec<u8>,
+    composed_top: usize,
     icons: Vec<Icon>,
     counts: (Vec<(usize, [u64; 3])>, [u64; 3]),
     /// Theme the renderer's static base was painted for; repainted when `options.theme` changes.
@@ -293,6 +297,8 @@ pub fn lon_lat(x: f32, y: f32) -> Option<(f64, f64)> {
 impl Renderer {
     pub fn new_soc() -> Self {
         let mut r = Self::blank();
+        // Not kept: the SOC view builds its country layer once a second in a pixmap it frees right after.
+        r.country_overlay = Pixmap::new(1, 1).unwrap();
         r.paint_soc_base(Theme::Classic);
         r
     }
@@ -447,7 +453,8 @@ impl SocView {
             list_ms: 0,
             overlay_ms: 0,
             overlay_key: None,
-            composed: Pixmap::new(crate::WIDTH, crate::HEIGHT).unwrap(),
+            composed_rows: Vec::new(),
+            composed_top: 0,
             icons: Vec::new(),
             counts: (Vec::new(), [0; 3]),
             base_theme: Theme::Classic,
@@ -466,7 +473,7 @@ impl SocView {
         if width != self.width() {
             self.renderer.resize_wide(width);
             self.renderer.paint_soc_base(self.base_theme);
-            self.composed = Pixmap::new(width, crate::HEIGHT).unwrap();
+            self.composed_rows = Vec::new();
             self.overlay_key = None;
         }
         width
@@ -637,7 +644,10 @@ impl SocView {
                     (index, severity(dominant), ((22. + 78. * level) * dim) as u8)
                 })
                 .collect();
-            r.countries.fill(&mut r.country_overlay, &fills);
+            // Full-frame layer used only to build `composed`; dropped at the end of this block so it is not
+            // held between refreshes (5 to 8 MB depending on the frame width).
+            let mut overlay = Pixmap::new(r.pix.width(), r.pix.height()).unwrap();
+            r.countries.fill(&mut overlay, &fills);
 
             self.icons = match radar_data {
                 Some(data) if self.options.radar_layer => {
@@ -647,13 +657,13 @@ impl SocView {
             };
             if let Some(focus) = self.options.focus {
                 r.countries
-                    .outline(&mut r.country_overlay, &[(focus, 2.2, 230)], FOCUS);
+                    .outline(&mut overlay, &[(focus, 2.2, 230)], FOCUS);
             }
             let mut composed = r.base.clone();
             composed.draw_pixmap(
                 0,
                 0,
-                r.country_overlay.as_ref(),
+                overlay.as_ref(),
                 &PixmapPaint::default(),
                 Transform::identity(),
                 None,
@@ -665,9 +675,23 @@ impl SocView {
             for icon in order {
                 draw_icon(&mut composed, icon, alpha);
             }
-            self.composed = composed;
+            let (top, rows) = changed_rows(
+                r.base.data(),
+                composed.data(),
+                composed.width() as usize * 4,
+            );
+            self.composed_top = top;
+            self.composed_rows = rows;
         }
-        r.pix.data_mut().copy_from_slice(self.composed.data());
+        r.pix.data_mut().copy_from_slice(r.base.data());
+        let start = self.composed_top * r.pix.width() as usize * 4;
+        if let Some(target) = r
+            .pix
+            .data_mut()
+            .get_mut(start..start + self.composed_rows.len())
+        {
+            target.copy_from_slice(&self.composed_rows);
+        }
         for icon in self.icons.iter().filter(|i| !i.label.is_empty()) {
             let (x, y) = icon.at;
             let colour = if icon.target { TARGET } else { INFO };
@@ -1675,6 +1699,23 @@ fn radar_icons(
     }
     icons
 }
+/// The first row where `composed` differs from `base` and a copy of the rows from there to the last differing
+/// row (empty when nothing differs). `stride` is the byte length of one row.
+fn changed_rows(base: &[u8], composed: &[u8], stride: usize) -> (usize, Vec<u8>) {
+    let differs = |row: &usize| {
+        base[row * stride..(row + 1) * stride] != composed[row * stride..(row + 1) * stride]
+    };
+    let rows = composed.len() / stride.max(1);
+    let Some(first) = (0..rows).find(differs) else {
+        return (0, Vec::new());
+    };
+    let last = (first..rows).rev().find(differs).unwrap_or(first);
+    (
+        first,
+        composed[first * stride..(last + 1) * stride].to_vec(),
+    )
+}
+
 fn draw_icon(pixmap: &mut Pixmap, icon: &Icon, alpha: f32) {
     let (x, y) = icon.at;
     let stroke = |pixmap: &mut Pixmap, path: &Path, rgb: [u8; 3], a: f32, width: f32| {
@@ -1736,6 +1777,20 @@ fn draw_icon(pixmap: &mut Pixmap, icon: &Icon, alpha: f32) {
 }
 #[cfg(test)]
 mod tests {
+    use super::changed_rows;
+
+    #[test]
+    fn changed_rows_keeps_only_the_differing_band() {
+        let base = vec![0u8; 4 * 5];
+        let mut composed = base.clone();
+        assert_eq!(changed_rows(&base, &composed, 4), (0, Vec::new()));
+        composed[4 + 1] = 9; // row 1
+        composed[3 * 4] = 7; // row 3
+        let (top, rows) = changed_rows(&base, &composed, 4);
+        assert_eq!(top, 1);
+        assert_eq!(rows, composed[4..16].to_vec());
+    }
+
     #[test]
     fn release_stamp_names_beta_rc_and_stable() {
         let id = |pre: &str, build: u32| {
