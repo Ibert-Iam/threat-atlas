@@ -42,10 +42,20 @@ pub struct TrustRoot {
     pub recovery: [u8; 32],
 }
 
-/// The key built into release builds. `None` until the owner has created the recovery key (R1): callers
-/// must then treat feed-based updates as unavailable, never as "accept anything".
+/// The owner's offline recovery public key (R1), created by Robert on 23 Nov 2026 with OpenSSL Ed25519.
+/// Key id `3f49e5476df76866`. The private key never leaves the owner (encrypted file in his 1Password,
+/// passphrase kept apart); changing this constant needs an owner decision and a new app version.
+pub const RECOVERY_PUBLIC_KEY: [u8; 32] = [
+    0xf6, 0x7b, 0xff, 0xb2, 0xa6, 0x17, 0x35, 0x95, 0x44, 0x97, 0x24, 0x83, 0x1d, 0xad, 0xd9, 0x2a,
+    0xf3, 0xde, 0xd3, 0x3c, 0xae, 0x5c, 0xf8, 0xf2, 0xaf, 0x8d, 0xa3, 0xb5, 0x61, 0xfa, 0xcb, 0x33,
+];
+
+/// The key built into release builds. Callers that get `None` must treat feed-based updates as
+/// unavailable, never as "accept anything" (that was the state before R1).
 pub fn official_trust_root() -> Option<TrustRoot> {
-    None
+    Some(TrustRoot {
+        recovery: RECOVERY_PUBLIC_KEY,
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -254,8 +264,22 @@ mod tests {
     }
 
     #[test]
-    fn official_root_is_absent_until_r1() {
-        assert_eq!(official_trust_root(), None);
+    fn official_root_is_the_owners_r1_key() {
+        let root = official_trust_root().expect("R1 is built in");
+        // Pinned to the value Robert printed on 23 Nov 2026; a silent change here must fail the build.
+        assert_eq!(
+            hex(&root.recovery),
+            "f67bffb2a6173595449724831dadd92af3ded33cae5cf8f2af8da3b561facb33"
+        );
+        assert_eq!(key_id(&root.recovery), "3f49e5476df76866");
+        // A valid Ed25519 point: ring rejects malformed public keys at verification time, so check that a
+        // garbage signature fails as BadSignature (key accepted) rather than anything else.
+        let feed = br#"{"schema_version":1}"#;
+        let sig = format!("ed25519 3f49e5476df76866 {}", "00".repeat(64));
+        assert_eq!(
+            verify_feed(feed, sig.as_bytes(), &root, date(2026, 11, 23)),
+            Err(SignatureError::BadSignature)
+        );
     }
 
     #[test]
