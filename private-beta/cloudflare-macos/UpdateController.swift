@@ -28,6 +28,10 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
     @Published private(set) var response: UpdateResponse?
     @Published private(set) var state: [String: Any] = [:]
 
+    /// Set by `start()` after licence consent; nothing is downloaded before that.
+    private(set) var started = false
+    /// Only the newest check may publish its result (a channel change while one runs starts a new one).
+    private var generation = 0
     private let stateURL: URL
     private let jitter: TimeInterval
     private var timer: Timer?
@@ -63,6 +67,7 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
     /// Call only after the licence was accepted (the app's consent gate).
     func start() {
         guard timer == nil else { return }
+        started = true
         if isDue() { checkNow() }
         timer = Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { [weak self] _ in
             guard let self, !self.checking, self.isDue() else { return }
@@ -77,12 +82,19 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
         return age < 0 || age >= wait
     }
 
+    /// Starts a check; does nothing before `start()` (licence consent). Main thread only.
     func checkNow() {
-        DispatchQueue.main.async { self.checking = true }
+        guard started else { return }
+        generation += 1
+        let mine = generation
+        checking = true
         Task {
             let feed = await fetch(Self.feedURL, cap: Self.maxFeedBytes)
             let signature = await fetch(Self.signatureURL, cap: Self.maxSignatureBytes)
-            await MainActor.run { self.finish(feed: feed, signature: signature) }
+            await MainActor.run {
+                guard mine == self.generation else { return }
+                self.finish(feed: feed, signature: signature)
+            }
         }
     }
 

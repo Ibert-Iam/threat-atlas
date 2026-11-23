@@ -34,6 +34,8 @@ import Foundation
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("update-tests-" + UUID().uuidString)
         let c = UpdateController(directory: dir)
         check(c.isDue(), "never checked: due")
+        c.checkNow()
+        check(!c.started && !c.checking, "nothing is checked before start() (licence consent)")
         check(atlasFeedVersion.hasPrefix(radarLicenseTerms.version), "feed version comes from the build identity")
         check(["stable", "rc", "beta"].contains(atlasBuildChannel), "build channel is a feed channel")
         try? FileManager.default.removeItem(at: dir)
