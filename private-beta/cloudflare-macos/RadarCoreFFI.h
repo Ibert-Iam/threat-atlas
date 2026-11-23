@@ -46,3 +46,7 @@ size_t ta_osint_page(void *handle, const char *source_id, const char *clipboard,
 size_t ta_osint_status(void *handle, const char *source_id, uint8_t *out, size_t cap);
 size_t ta_osint_sources(uint8_t *out, size_t cap);
 void ta_osint_drop(void *handle);
+// Settings > Updates: one pure update check over the signed feed. Writes at most cap bytes of response
+// JSON (no NUL) to out and returns its full length; call with out NULL first to learn the size.
+size_t ta_update_check(const uint8_t *feed, size_t feed_len, const uint8_t *signature, size_t signature_len,
+                       const char *request_json, uint8_t *out, size_t cap);
