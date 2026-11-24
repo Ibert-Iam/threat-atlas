@@ -1,7 +1,7 @@
 use crate::soc_config::{self, Motion, SaverDismiss, Settings, Terms, Theme, BUILD, VERSION};
 use crate::soc_osint::{Osint, View as OsintView};
 use crate::soc_radar::Radar;
-use crate::soc_update::{self, UpdateView, Updater};
+use crate::soc_update::{self, Download, UpdateView, Updater};
 use crate::soc_updates::{self, UpdateChannel};
 use std::{
     error::Error,
@@ -941,7 +941,7 @@ fn menu(
     }
 }
 
-/// Settings → Updates: status, channel, check now, release page, install via the update script.
+/// Settings → Updates: status, channel, check now, release page, download and check, open the installer.
 unsafe fn updates_menu(parent: HMENU, channel: UpdateChannel, update: &UpdateView) {
     let menu = CreatePopupMenu();
     if menu.is_null() {
@@ -984,42 +984,79 @@ unsafe fn updates_menu(parent: HMENU, channel: UpdateChannel, update: &UpdateVie
             wide(&format!("Open the release page for {}...", offer.version)).as_ptr(),
         );
     }
+    // Two explicit steps: download and check (67), then open the installer (21). Never a silent install.
+    let (id, enabled, label) = match &update.download {
+        Download::Ready(ready, _) => (
+            21,
+            true,
+            format!(
+                "Install {} (closes AtlasSOC, opens the installer)...",
+                ready.version
+            ),
+        ),
+        Download::Running(version) => (67, false, format!("Downloading {version}...")),
+        _ => match update.offer.as_ref().filter(|_| update.newer) {
+            Some(offer) => (67, true, format!("Download update {}...", offer.version)),
+            None => (67, false, "Download update...".to_string()),
+        },
+    };
     AppendMenuW(
         menu,
-        MF_STRING | if update.newer { 0 } else { MF_GRAYED },
-        21,
-        wide("Install with the update script (closes AtlasSOC)...").as_ptr(),
+        MF_STRING | if enabled { 0 } else { MF_GRAYED },
+        id,
+        wide(&label).as_ptr(),
     );
     AppendMenuW(parent, MF_POPUP, menu as usize, wide("Updates").as_ptr());
 }
 
-/// Asks first, then hands over to the update script. Returns true when the app should close.
-fn start_update(window: &Window, update: &UpdateView) -> bool {
-    let Some(offer) = update.offer.as_ref().filter(|_| update.newer) else {
+/// Asks first, then downloads the offered installer in the background and checks it against the signed
+/// update list. Nothing is installed in this step.
+fn start_download(window: &Window, updater: &Updater, update: &UpdateView) {
+    let Some(offer) = update.offer.clone().filter(|_| update.newer) else {
+        return;
+    };
+    let size = offer.asset.size as f64 / 1_048_576.0;
+    let text = format!(
+        "Download AtlasSOC {} ({size:.1} MB)?\n\nThe installer comes from the official GitHub release named in the signed update list. AtlasSOC checks its size and SHA-256 against that list before keeping it. Nothing is installed yet: you start the installer yourself in the next step.",
+        offer.version
+    );
+    if confirm(window, &text, "Download update") {
+        updater.download(offer);
+    }
+}
+
+/// Asks first, checks the downloaded file again and opens the normal installer window. Returns true when
+/// the app should close so the installer can replace it.
+fn start_install(window: &Window, update: &UpdateView) -> bool {
+    let Download::Ready(offer, file) = &update.download else {
         return false;
     };
     let text = format!(
-        "Update available: {}\n\nAtlasSOC will close, download the installer from GitHub, check it and replace this version. Windows may ask for approval. The app then opens again and asks you to review the licence for the new version.\n\nContinue?",
+        "Install AtlasSOC {}?\n\nThe downloaded installer matches the SHA-256 in the signed update list. It is not code-signed yet (the Windows certificate is still being issued), so Windows SmartScreen may warn about an unknown publisher.\n\nAtlasSOC closes and the normal installer window opens. Windows may ask for approval, and the app asks you to review the licence for the new version.",
         offer.version
     );
-    let answer = unsafe {
-        MessageBoxW(
-            window.hwnd() as HWND,
-            wide(&text).as_ptr(),
-            wide("Update AtlasSOC").as_ptr(),
-            MB_YESNO | MB_ICONQUESTION,
-        )
-    };
-    if answer != IDYES {
+    if !confirm(window, &text, "Install update") {
         return false;
     }
-    match soc_update::launch(offer.channel) {
+    match soc_update::install(offer, file) {
         Ok(()) => true,
         Err(error) => {
-            show_error(&format!("Cannot start the update: {error}"));
+            show_error(&format!("Cannot start the installer: {error}"));
             false
         }
     }
+}
+
+fn confirm(window: &Window, text: &str, title: &str) -> bool {
+    let answer = unsafe {
+        MessageBoxW(
+            window.hwnd() as HWND,
+            wide(text).as_ptr(),
+            wide(title).as_ptr(),
+            MB_YESNO | MB_ICONQUESTION,
+        )
+    };
+    answer == IDYES
 }
 
 /// Opens the token guide shipped next to AtlasSOC.exe (read-only HTML), or the public docs.
@@ -1277,16 +1314,21 @@ pub fn run() -> Result<(), Box<dyn Error>> {
                         let page = updater.as_ref().map(Updater::view).and_then(|v| v.offer).and_then(|o| soc_updates::release_page(&o.tag));
                         if let Some(page) = page { open_url(&display.window, &page); }
                     }
+                    67 => {
+                        if let Some(updater) = &updater {
+                            start_download(&display.window, updater, &updater.view());
+                        }
+                    }
                     21 => {
                         if let Some(update) = updater.as_ref().map(Updater::view) {
-                            if start_update(&display.window, &update) {
+                            if start_install(&display.window, &update) {
                                 *flow = ControlFlow::Exit;
                             }
                         }
                     }
                     _ => {}
                 }
-                if action != 0 && !matches!(action, 15 | 16 | 21 | 27 | 65 | 66) { dirty = true; }
+                if action != 0 && !matches!(action, 15 | 16 | 21 | 27 | 65 | 66 | 67) { dirty = true; }
             }
             Event::MainEventsCleared => {
                 if monitor_check.elapsed() >= Duration::from_secs(2) {
