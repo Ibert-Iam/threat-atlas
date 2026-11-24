@@ -196,12 +196,31 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
         guard let url = URL(string: asset.url), url.scheme == "https" else { return fail("the download address is not allowed") }
         do { try fm.createDirectory(at: folder, withIntermediateDirectories: true) } catch { return fail("cannot create the download folder") }
         let zip = folder.appendingPathComponent(asset.name)
+        // Streamed to disk in chunks; the transfer stops as soon as it would pass the announced size, so a
+        // wrong or hostile response never fills the disk beyond it.
         do {
             var request = URLRequest(url: url)
             request.cachePolicy = .reloadIgnoringLocalCacheData
-            let (temp, reply) = try await session.download(for: request)
-            guard (reply as? HTTPURLResponse)?.statusCode == 200 else { try? fm.removeItem(at: temp); return fail("the server did not send the file") }
-            try fm.moveItem(at: temp, to: zip)
+            let (stream, reply) = try await session.bytes(for: request)
+            guard (reply as? HTTPURLResponse)?.statusCode == 200 else { stream.task.cancel(); return fail("the server did not send the file") }
+            if reply.expectedContentLength > 0, UInt64(reply.expectedContentLength) != asset.size {
+                stream.task.cancel()
+                return fail("the download is incomplete or wrong size (\(reply.expectedContentLength) of \(asset.size) bytes)")
+            }
+            guard fm.createFile(atPath: zip.path, contents: nil), let handle = try? FileHandle(forWritingTo: zip) else {
+                stream.task.cancel(); return fail("cannot write the download")
+            }
+            defer { try? handle.close() }
+            var buffer = Data()
+            buffer.reserveCapacity(1 << 16)
+            var total: UInt64 = 0
+            for try await byte in stream {
+                total += 1
+                if total > asset.size { stream.task.cancel(); return fail("the download is larger than announced") }
+                buffer.append(byte)
+                if buffer.count == 1 << 16 { try handle.write(contentsOf: buffer); buffer.removeAll(keepingCapacity: true) }
+            }
+            try handle.write(contentsOf: buffer)
         } catch {
             return fail("the download failed or was interrupted")
         }
