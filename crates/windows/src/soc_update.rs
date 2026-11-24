@@ -55,7 +55,12 @@ pub struct Updater {
 
 impl Updater {
     pub fn start(state_dir: &Path, channel: UpdateChannel) -> Self {
-        let path = state_dir.join(STATE_FILE);
+        // A test-feed build keeps its own state, so test feeds never move a real installation's rollback mark.
+        let path = state_dir.join(if soc_updates::feed_source().test {
+            "update-check-test.json"
+        } else {
+            STATE_FILE
+        });
         let state = soc_config::read_bounded(&path)
             .map(|bytes| CheckState::from_json(&bytes))
             .unwrap_or_default();
