@@ -91,6 +91,10 @@ pub struct Settings {
     /// Omitted while Any, so settings files stay readable by earlier builds.
     #[serde(skip_serializing_if = "SaverDismiss::is_any")]
     pub saver_dismiss: SaverDismiss,
+    /// Settings → Updates channel. Omitted while it follows the installed build, so settings files stay
+    /// readable by earlier builds.
+    #[serde(skip_serializing_if = "crate::soc_updates::UpdateChannel::is_build")]
+    pub update_channel: crate::soc_updates::UpdateChannel,
 }
 impl Default for Settings {
     fn default() -> Self {
@@ -109,6 +113,7 @@ impl Default for Settings {
             enabled_sources: threat_atlas_core::osint::default_enabled_ids(),
             watch_domains: Vec::new(),
             saver_dismiss: SaverDismiss::Any,
+            update_channel: crate::soc_updates::UpdateChannel::Build,
         }
     }
 }
@@ -337,6 +342,34 @@ mod tests {
             "unknown theme falls back to defaults"
         );
         fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn update_channel_roundtrips_and_stays_out_of_default_files() {
+        use crate::soc_updates::UpdateChannel;
+        use threat_atlas_core::saver_config::{Dismiss, SaverSettings};
+        let path = scratch("update-channel.json");
+        Settings::default().save(&path).unwrap();
+        assert!(!fs::read_to_string(&path)
+            .unwrap()
+            .contains("update_channel"));
+        let rc = Settings {
+            update_channel: UpdateChannel::Rc,
+            ..Settings::default()
+        };
+        rc.save(&path).unwrap();
+        assert!(fs::read_to_string(&path)
+            .unwrap()
+            .contains("\"update_channel\": \"rc\""));
+        assert_eq!(Settings::load(&path).0, rc);
+        // The screensaver reads the same file and must not trip over the new field.
+        assert_eq!(SaverSettings::load(&path).dismiss, Dismiss::AnyInput);
+        fs::write(&path, br#"{"update_channel":"nightly"}"#).unwrap();
+        assert_eq!(
+            Settings::load(&path).0,
+            Settings::default(),
+            "unknown channel falls back to defaults"
+        );
+        let _ = fs::remove_file(&path);
     }
     #[test]
     fn saver_dismissal_roundtrips_and_the_saver_reads_it() {
