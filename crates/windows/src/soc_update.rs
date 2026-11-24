@@ -39,6 +39,13 @@ pub struct UpdateView {
     pub download: Download,
 }
 
+/// True while a downloaded file is still what the latest check offers as newer: same version, tag and
+/// SHA-256. Anything else (a withdrawal, a channel switch, a newer release) makes the file stale.
+fn still_offered(outcome: Option<&Outcome>, ready: &Selected) -> bool {
+    matches!(outcome, Some(Outcome::Available(found))
+        if found.version == ready.version && found.tag == ready.tag && found.asset.sha256 == ready.asset.sha256)
+}
+
 /// The download step. `Ready` holds the offer the file was checked against and the private path.
 #[derive(Clone, Default)]
 pub enum Download {
@@ -133,7 +140,16 @@ impl Updater {
         };
         let mut lines =
             soc_updates::status_lines(shared.outcome.as_ref(), &shared.state, shared.checking);
-        match &shared.download {
+        // A file that no longer matches the offer is never shown as installable (the worker deletes it).
+        let download = match &shared.download {
+            Download::Ready(ready, _)
+                if shared.checking || !still_offered(shared.outcome.as_ref(), ready) =>
+            {
+                Download::Idle
+            }
+            other => other.clone(),
+        };
+        match &download {
             Download::Idle => {}
             Download::Running(version) => lines.push(format!("Downloading {version}...")),
             Download::Ready(ready, _) => lines.push(format!(
@@ -146,7 +162,7 @@ impl Updater {
             lines,
             offer,
             newer,
-            download: shared.download.clone(),
+            download,
         }
     }
 }
@@ -159,6 +175,8 @@ fn run(
     mut channel: UpdateChannel,
     jitter: i64,
 ) {
+    // Installers from an earlier session are no longer needed (a file still in use stays; that is fine).
+    let _ = fs::remove_dir_all(&updates);
     let mut forced = false;
     loop {
         let now = jiff::Timestamp::now();
@@ -166,6 +184,7 @@ fn run(
         if forced || soc_updates::due(&state, now.as_second(), jitter) {
             forced = false;
             check_once(&shared, &path, channel, now, state);
+            drop_stale_download(&shared, &updates);
         }
         match rx.recv_timeout(WAKE) {
             Ok(Request::CheckNow) => forced = true,
@@ -174,16 +193,33 @@ fn run(
                 forced = true;
             }
             Ok(Request::Download(offer)) => {
-                let result = match fetch_package(&offer, &updates) {
-                    Ok(file) => Download::Ready(offer, file),
-                    Err(why) => Download::Failed(why),
-                };
-                if let Ok(mut s) = shared.lock() {
-                    s.download = result;
-                }
+                // Its own thread, so checks and "Check now" are not held up by a slow download.
+                let (shared, updates) = (shared.clone(), updates.clone());
+                thread::spawn(move || {
+                    let result = match fetch_package(&offer, &updates) {
+                        Ok(file) => Download::Ready(offer, file),
+                        Err(why) => Download::Failed(why),
+                    };
+                    if let Ok(mut s) = shared.lock() {
+                        s.download = result;
+                    }
+                });
             }
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => return,
+        }
+    }
+}
+
+/// After a check: a downloaded file that the new result no longer offers is deleted and forgotten.
+fn drop_stale_download(shared: &Arc<Mutex<Shared>>, updates: &Path) {
+    let Ok(mut s) = shared.lock() else {
+        return;
+    };
+    if let Download::Ready(ready, _) = &s.download {
+        if !still_offered(s.outcome.as_ref(), ready) {
+            s.download = Download::Idle;
+            let _ = fs::remove_dir_all(updates);
         }
     }
 }
@@ -274,13 +310,16 @@ fn open_installer(file: &Path) -> Result<(), String> {
     let verb = wide(std::ffi::OsStr::new("open"));
     let target = wide(file.as_os_str());
     let folder = file.parent().map(|p| wide(p.as_os_str()));
+    // Inno Setup will not change the install scope, so open the wizard in the scope of this copy
+    // (no silent switches: the user still sees and confirms every installer page).
+    let scope = wide(std::ffi::OsStr::new(install_scope()));
     // SAFETY: all strings are NUL-terminated and outlive the call.
     let result = unsafe {
         ShellExecuteW(
             std::ptr::null_mut(),
             verb.as_ptr(),
             target.as_ptr(),
-            std::ptr::null(),
+            scope.as_ptr(),
             folder.as_ref().map_or(std::ptr::null(), |f| f.as_ptr()),
             SW_SHOWNORMAL,
         )
@@ -292,6 +331,16 @@ fn open_installer(file: &Path) -> Result<(), String> {
             "Windows could not start the installer (code {})",
             result as isize
         ))
+    }
+}
+
+/// `/ALLUSERS` when this copy runs from Program Files, otherwise `/CURRENTUSER`.
+fn install_scope() -> &'static str {
+    let exe = std::env::current_exe().ok();
+    let machine = std::env::var_os("ProgramFiles").map(PathBuf::from);
+    match (exe, machine) {
+        (Some(exe), Some(machine)) if exe.starts_with(&machine) => "/ALLUSERS",
+        _ => "/CURRENTUSER",
     }
 }
 
