@@ -8,6 +8,7 @@ mod soc_osint;
 mod soc_radar;
 #[cfg(windows)]
 mod soc_update;
+mod soc_updates;
 
 fn main() {
     #[cfg(windows)]
