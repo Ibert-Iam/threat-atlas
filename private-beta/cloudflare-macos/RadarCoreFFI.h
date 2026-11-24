@@ -50,3 +50,6 @@ void ta_osint_drop(void *handle);
 // JSON (no NUL) to out and returns its full length; call with out NULL first to learn the size.
 size_t ta_update_check(const uint8_t *feed, size_t feed_len, const uint8_t *signature, size_t signature_len,
                        const char *request_json, uint8_t *out, size_t cap);
+/* 0 = the downloaded bytes match the offer (release URL, name, size, SHA-256); 1 URL, 2 name, 3 announced
+   size, 4 size differs, 5 SHA-256 differs, 9 offer JSON not understood. */
+int32_t ta_update_verify_package(const char *offer_json, const uint8_t *bytes, size_t len);

@@ -111,7 +111,16 @@ struct OsintSettingsView: View {
                         Button("Open the release page for \(offer.version)…") { NSWorkspace.shared.open(page) }
                     }
                 }
-                Text("AtlasSOC never installs anything by itself. Download the new version from its release page.")
+                if updates.readyApp != nil {
+                    Button("Show the checked app in Finder…") { updates.revealReady() }
+                } else if updates.response?.newer == true, let offer = updates.response?.offer, offer.asset != nil {
+                    if case .running = updates.download {
+                        Button("Downloading \(offer.version)…") {}.disabled(true)
+                    } else {
+                        Button("Download and check \(offer.version)…") { updates.downloadOffer() }
+                    }
+                }
+                Text("AtlasSOC never installs anything by itself. It downloads the new version, checks it against the signed update list and Apple's Developer ID and Gatekeeper, and shows it in Finder; you replace the app yourself.")
                     .font(.caption).foregroundStyle(.secondary)
                 Button("All releases…") { NSWorkspace.shared.open(releasesURL) }
             }

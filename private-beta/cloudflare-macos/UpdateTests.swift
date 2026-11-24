@@ -39,6 +39,28 @@ import Foundation
         check(atlasFeedVersion.hasPrefix(radarLicenseTerms.version), "feed version comes from the build identity")
         check(["stable", "rc", "beta"].contains(atlasBuildChannel), "build channel is a feed channel")
         try? FileManager.default.removeItem(at: dir)
+
+        // Download step: the app check (Developer ID team + Gatekeeper) and the core package check.
+        let id = "dev.threatatlas.private.radar"
+        let official = URL(fileURLWithPath: "/Applications/AtlasSOC.app")
+        if FileManager.default.fileExists(atPath: official.path) {
+            check(UpdateController.checkApp(official, bundleID: id) == nil, "the installed, notarized official app passes")
+        }
+        let calculator = URL(fileURLWithPath: "/System/Applications/Calculator.app")
+        check(UpdateController.checkApp(calculator, bundleID: id)?.contains("bundle identifier") == true,
+              "another app is refused on its bundle identifier")
+        if let adhoc = ProcessInfo.processInfo.environment["ADHOC_APP"] {
+            check(UpdateController.checkApp(URL(fileURLWithPath: adhoc), bundleID: id)?.contains("Developer ID") == true,
+                  "an ad-hoc signed build is refused (not the official team)")
+        }
+        let payload = Data("zip bytes".utf8)
+        let offer: [String: Any] = ["version": "0.8.0", "channel": "stable", "tag": "atlassoc-v0.8.0", "build": 16,
+            "asset": ["platform": "macos-universal", "kind": "portable", "name": "AtlasSOC-macOS-universal-v0.8.0-build16.zip",
+                      "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0/AtlasSOC-macOS-universal-v0.8.0-build16.zip",
+                      "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "size": payload.count]]
+        let raw = String(data: try! JSONSerialization.data(withJSONObject: offer), encoding: .utf8)!
+        let code = raw.withCString { o in payload.withUnsafeBytes { ta_update_verify_package(o, $0.bindMemory(to: UInt8.self).baseAddress, payload.count) } }
+        check(code == 5 && UpdateController.packageText(code).contains("SHA-256"), "a wrong SHA-256 is refused by the core")
         print("PASS: update check over the core, offline")
     }
 }

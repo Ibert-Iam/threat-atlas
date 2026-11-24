@@ -4,7 +4,8 @@
 //! redirects), saves the state and shows the result. No network, files or installation here.
 use crate::feed_signature::official_trust_root;
 use crate::update_check::{check, CheckError, CheckState, Installed, Outcome};
-use crate::update_feed::{Channel, FeedError, Kind};
+use crate::update_feed::{Asset, Channel, FeedError, Kind, Selected};
+use crate::update_package::{self, PackageError};
 use serde::Deserialize;
 use std::ffi::{c_char, CStr};
 
@@ -99,6 +100,14 @@ pub fn respond(feed: &[u8], signature: &[u8], request: &str) -> String {
             "tag": o.tag,
             "build": o.build,
             "release_page": release_page(&o.tag),
+            "asset": {
+                "platform": o.asset.platform,
+                "kind": o.asset.kind,
+                "name": o.asset.name,
+                "url": o.asset.url,
+                "sha256": o.asset.sha256,
+                "size": o.asset.size,
+            },
         })),
         "newer": newer,
         "state": state,
@@ -145,6 +154,77 @@ pub unsafe extern "C" fn ta_update_check(
         std::ptr::copy_nonoverlapping(response.as_ptr(), out, n);
     }
     response.len()
+}
+
+#[derive(Deserialize)]
+struct OfferJson {
+    version: String,
+    channel: String,
+    tag: String,
+    build: Option<u32>,
+    asset: AssetJson,
+}
+
+#[derive(Deserialize)]
+struct AssetJson {
+    platform: String,
+    kind: String,
+    name: String,
+    url: String,
+    sha256: String,
+    size: u64,
+}
+
+/// Checks downloaded bytes against an `offer` object exactly as [`respond`] returned it (release URL,
+/// file name, size, SHA-256; see [`update_package::verify`]). 0 = passes; 1 URL, 2 name, 3 announced size,
+/// 4 size differs (interrupted or padded), 5 SHA-256 differs, 9 the offer JSON is not one of ours.
+pub fn verify_package(offer: &str, bytes: &[u8]) -> i32 {
+    let Ok(o) = serde_json::from_str::<OfferJson>(offer) else {
+        return 9;
+    };
+    let Some(channel) = Channel::parse(&o.channel) else {
+        return 9;
+    };
+    let selected = Selected {
+        version: o.version,
+        channel,
+        tag: o.tag,
+        build: o.build,
+        asset: Asset {
+            platform: o.asset.platform,
+            kind: o.asset.kind,
+            name: o.asset.name,
+            url: o.asset.url,
+            sha256: o.asset.sha256,
+            size: o.asset.size,
+        },
+    };
+    match update_package::verify(&selected, bytes) {
+        Ok(()) => 0,
+        Err(PackageError::Url) => 1,
+        Err(PackageError::Name) => 2,
+        Err(PackageError::TooLarge) => 3,
+        Err(PackageError::Size { .. }) => 4,
+        Err(PackageError::Hash) => 5,
+    }
+}
+
+/// C entry for [`verify_package`].
+/// # Safety
+/// `offer` must be a valid NUL-terminated UTF-8 string or null; `bytes` must point to `len` readable bytes
+/// or be null.
+#[no_mangle]
+pub unsafe extern "C" fn ta_update_verify_package(
+    offer: *const c_char,
+    bytes: *const u8,
+    len: usize,
+) -> i32 {
+    let offer = if offer.is_null() {
+        ""
+    } else {
+        CStr::from_ptr(offer).to_str().unwrap_or("")
+    };
+    verify_package(offer, self::bytes(bytes, len))
 }
 
 #[cfg(test)]
@@ -256,5 +336,51 @@ mod tests {
         for bad in ["", "../x", "a/b", "a?b", "a b", "a%2f"] {
             assert_eq!(release_page(bad), None, "{bad}");
         }
+    }
+
+    #[test]
+    fn package_check_matches_the_offer() {
+        use sha2::{Digest, Sha256};
+        let payload = b"zip bytes";
+        let hex: String = Sha256::digest(payload)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        let offer = |sha: &str, size: usize, url: &str| {
+            serde_json::json!({
+                "version": "0.8.0", "channel": "stable", "tag": "atlassoc-v0.8.0", "build": 16,
+                "asset": {"platform": "macos-universal", "kind": "portable",
+                          "name": "AtlasSOC-macOS-universal-v0.8.0-build16.zip", "url": url,
+                          "sha256": sha, "size": size}
+            })
+            .to_string()
+        };
+        let url = "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0/AtlasSOC-macOS-universal-v0.8.0-build16.zip";
+        assert_eq!(verify_package(&offer(&hex, payload.len(), url), payload), 0);
+        assert_eq!(
+            verify_package(
+                &offer(&hex, payload.len(), "https://evil.example/x.zip"),
+                payload
+            ),
+            1
+        );
+        assert_eq!(
+            verify_package(&offer(&hex, payload.len() + 1, url), payload),
+            4
+        );
+        assert_eq!(
+            verify_package(&offer(&"0".repeat(64), payload.len(), url), payload),
+            5
+        );
+        assert_eq!(verify_package("{}", payload), 9);
+        let c = std::ffi::CString::new(offer(&hex, payload.len(), url)).unwrap();
+        assert_eq!(
+            unsafe { ta_update_verify_package(c.as_ptr(), payload.as_ptr(), payload.len()) },
+            0
+        );
+        assert_eq!(
+            unsafe { ta_update_verify_package(std::ptr::null(), std::ptr::null(), 0) },
+            9
+        );
     }
 }
