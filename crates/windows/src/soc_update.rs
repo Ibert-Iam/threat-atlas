@@ -7,6 +7,7 @@ use crate::soc_radar::https_get;
 use crate::soc_updates::{self, UpdateChannel};
 use std::{
     env, fs,
+    io::Write,
     path::{Path, PathBuf},
     process::{self, Command},
     sync::{
@@ -173,8 +174,21 @@ fn check_once(
 pub fn launch(channel: Channel) -> Result<(), String> {
     let root = env::var_os("SystemRoot").ok_or("SystemRoot is unavailable")?;
     let powershell = PathBuf::from(root).join(r"System32\WindowsPowerShell\v1.0\powershell.exe");
-    let script = env::temp_dir().join(format!("update-atlassoc-{}.ps1", process::id()));
-    fs::write(&script, SCRIPT).map_err(|error| error.to_string())?;
+    // A fresh, unguessable name, created only if it does not exist yet: a file another process placed in
+    // %TEMP% is never reused or overwritten, and a name clash fails instead of running someone else's file.
+    let script = env::temp_dir().join(soc_updates::script_file_name(
+        process::id(),
+        soc_updates::random_u64(),
+    ));
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&script)
+        .map_err(|error| error.to_string())?;
+    file.write_all(SCRIPT.as_bytes())
+        .and_then(|()| file.sync_all())
+        .map_err(|error| error.to_string())?;
+    drop(file);
     Command::new(powershell)
         .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
         .arg(&script)

@@ -230,6 +230,26 @@ fn short_time(text: &str) -> String {
         .unwrap_or_else(|_| text.chars().take(40).collect())
 }
 
+/// File name for the update script copy: the process id plus 64 random bits, so another process of the
+/// same user cannot pre-place a file under a name it can guess. Used with `create_new`, which refuses an
+/// existing file instead of overwriting it.
+pub fn script_file_name(pid: u32, random: u64) -> String {
+    format!("update-atlassoc-{pid}-{random:016x}.ps1")
+}
+
+/// 64 bits from the standard library's per-process random hash keys (seeded by the OS), mixed with the
+/// clock. Not for cryptography; only to make the script name unguessable to a local squatter.
+pub fn random_u64() -> u64 {
+    use std::hash::{BuildHasher, Hasher};
+    let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+    h.write_u128(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos()),
+    );
+    h.finish()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -384,5 +404,17 @@ mod tests {
         )[0]
         .contains("withdrawn"));
         assert_eq!(status_lines(None, &state, false)[1], "Last check: never");
+    }
+
+    #[test]
+    fn script_names_are_unguessable_and_fixed_shape() {
+        let a = script_file_name(42, random_u64());
+        let b = script_file_name(42, random_u64());
+        assert_ne!(a, b, "two names for the same pid must differ");
+        assert_eq!(
+            script_file_name(7, 0xab),
+            "update-atlassoc-7-00000000000000ab.ps1"
+        );
+        assert!(a.starts_with("update-atlassoc-42-") && a.ends_with(".ps1") && a.len() == 39);
     }
 }
