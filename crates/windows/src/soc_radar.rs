@@ -369,7 +369,8 @@ fn https_get_policy(
     let host = wide(host);
     let path = wide(path);
     let verb = wide(if post_body.is_some() { "POST" } else { "GET" });
-    let headers = wide(headers);
+    // WinHttpAddRequestHeaders rejects an empty string, so an empty `headers` means "add none".
+    let headers = (!headers.is_empty()).then(|| wide(headers));
     // SAFETY: strings outlive the calls; handles are closed by `Handle` in reverse order.
     unsafe {
         let session = Handle(WinHttpOpen(
@@ -421,21 +422,22 @@ fn https_get_policy(
         {
             return None;
         }
-        if WinHttpAddRequestHeaders(
-            request.0,
-            headers.as_ptr(),
-            u32::MAX,
-            WINHTTP_ADDREQ_FLAG_ADD,
-        ) == 0
-            || WinHttpSendRequest(
+        if headers.as_ref().is_some_and(|headers| {
+            WinHttpAddRequestHeaders(
                 request.0,
-                std::ptr::null(),
-                0,
-                post_body.map_or(std::ptr::null(), |b| b.as_ptr().cast()),
-                post_body.map_or(0, |b| b.len() as u32),
-                post_body.map_or(0, |b| b.len() as u32),
-                0,
+                headers.as_ptr(),
+                u32::MAX,
+                WINHTTP_ADDREQ_FLAG_ADD,
             ) == 0
+        }) || WinHttpSendRequest(
+            request.0,
+            std::ptr::null(),
+            0,
+            post_body.map_or(std::ptr::null(), |b| b.as_ptr().cast()),
+            post_body.map_or(0, |b| b.len() as u32),
+            post_body.map_or(0, |b| b.len() as u32),
+            0,
+        ) == 0
             || WinHttpReceiveResponse(request.0, std::ptr::null_mut()) == 0
         {
             return None;
