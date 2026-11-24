@@ -335,7 +335,10 @@ impl Renderer {
                 self.text(1044, 225, 15, "LATEST SELECTED RECORDS", INFO);
                 self.text(45, 750, 14, "RECEIVED RECORDS / SECOND (LAST 90 S)", MUTED);
             }
-            Theme::Dashboard => self.dashboard_base(),
+            Theme::Dashboard => {
+                self.dashboard_base();
+                self.draw_compass(120.0, 570.0, 55.0);
+            }
         }
         self.text(
             35,
@@ -810,6 +813,7 @@ impl SocView {
                 intel: &self.intel,
             };
             panel.draw(r);
+            r.draw_hour_zones(now);
             return r.pix.data();
         }
 
@@ -1030,6 +1034,7 @@ impl SocView {
                 MUTED,
             );
         }
+        r.draw_hour_zones(now);
         r.pix.data()
     }
     /// Details for the country under a frame point, as JSON for the host's hover panel.
