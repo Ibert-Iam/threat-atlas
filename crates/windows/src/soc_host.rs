@@ -1032,7 +1032,7 @@ fn start_install(window: &Window, update: &UpdateView) -> bool {
         return false;
     };
     let text = format!(
-        "Install AtlasSOC {}?\n\nThe downloaded installer matches the SHA-256 in the signed update list. It is not code-signed yet (the Windows certificate is still being issued), so Windows SmartScreen may warn about an unknown publisher.\n\nAtlasSOC closes and the normal installer window opens. Windows may ask for approval, and the app asks you to review the licence for the new version.",
+        "Install AtlasSOC {}?\n\nThe downloaded installer matches the SHA-256 in the signed update list. Windows builds of AtlasSOC are not code-signed, so Windows SmartScreen may warn about an unknown publisher.\n\nAtlasSOC closes and the normal installer window opens. Windows may ask for approval, and the app asks you to review the licence for the new version.",
         offer.version
     );
     if !confirm(window, &text, "Install update") {
