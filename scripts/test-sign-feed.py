@@ -108,6 +108,18 @@ class OutputPreservationTests(unittest.TestCase):
         self.assertIn("signing_keys", json.loads((self.out / "feed.json").read_text()))
         self.assertEqual(sorted(p.name for p in self.out.iterdir()), ["feed.json", "feed.json.sig"])
 
+    def test_failure_on_second_replace_restores_last_pair(self):
+        line = "ed25519 0000000000000000 " + "0" * 128
+        real = os.replace
+        def flaky(src, dst):
+            if str(dst).endswith("feed.json.sig") and "LAST GOOD" not in pathlib.Path(src).read_text():
+                raise OSError("disk full")
+            return real(src, dst)
+        with mock.patch.object(sf, "run_signer", return_value=(True, line)), \
+             mock.patch.object(sf, "run_verifier", return_value=(True, "OK")), \
+             mock.patch.object(sf.os, "replace", side_effect=flaky):
+            self.assertEqual(self.run_main(), 1)
+        self.assert_untouched()
 
 if __name__ == "__main__":
     unittest.main()

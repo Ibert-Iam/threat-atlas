@@ -101,10 +101,14 @@ def main(argv=None):
         if not ok:
             print("REFUSED: the apps would reject this feed: " + detail, file=sys.stderr)
             return 1
-        # Full success: replace the published pair. Each os.replace is atomic; the signature goes last so a
-        # reader never sees a new signature next to an old feed.
-        os.replace(staged_feed, out / "feed.json")
-        os.replace(staged_sig, out / "feed.json.sig")
+        # Full success: replace the published pair. The signature goes last so a reader never sees a new
+        # signature next to an old feed; if either step fails, the last good pair is put back.
+        try:
+            replace_pair(staged_feed, staged_sig, out, stage)
+        except OSError as error:
+            print("REFUSED: could not replace the published pair (last good pair restored): " + str(error),
+                  file=sys.stderr)
+            return 1
     finally:
         shutil.rmtree(stage, ignore_errors=True)
 
@@ -115,6 +119,29 @@ def main(argv=None):
     print(f"SIGNED feed sha256={digest} generated_at={signed['generated_at']} key={key_id} at={when}")
     print(detail)
     return 0
+
+
+def replace_pair(new_feed, new_sig, out, stage):
+    """Moves the new feed and signature into OUT. The current pair is first moved aside into STAGE (same
+    file system, atomic renames); on any failure the files already moved in are rolled back, so OUT always
+    ends with either the complete new pair or the complete old one."""
+    feed, sig = out / "feed.json", out / "feed.json.sig"
+    backup = {feed: stage / "old-feed.json", sig: stage / "old-feed.json.sig"}
+    saved = []
+    try:
+        for target in (feed, sig):
+            if target.exists():
+                os.replace(target, backup[target])
+                saved.append(target)
+        os.replace(new_feed, feed)
+        os.replace(new_sig, sig)
+    except OSError:
+        for target in (feed, sig):
+            if target in saved:
+                os.replace(backup[target], target)
+            elif target.exists() and target not in saved:
+                target.unlink()
+        raise
 
 
 def run_signer(feed_path):
