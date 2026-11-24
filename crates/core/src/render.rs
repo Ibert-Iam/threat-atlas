@@ -333,6 +333,7 @@ impl Renderer {
             self.line(a, b, c, d, pal.grid, 1., pal.grid_alpha);
         }
         Self::draw_land(&mut self.pix, Transform::identity(), 0.7, &pal);
+        self.draw_compass(120.0, 570.0, 55.0);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -389,13 +390,10 @@ impl Renderer {
         }
     }
 
-    fn seeker_overlay(&mut self) {
+    /// Shared map compass: one compass rose for the standard saver, Seeker and AtlasSOC.
+    fn draw_compass(&mut self, ccx: f32, ccy: f32, cr: f32) {
         let gold = self.pal.gold;
         let cyan = self.pal.cyan;
-        self.rect_outline(14., 14., 1412., 872., gold, 150, 2.);
-
-        // Compass rose in the bottom-right corner, without a bearing needle.
-        let (ccx, ccy, cr) = (895.0f32, 585.0f32, 90.0f32);
         for r in [cr, cr * 0.78] {
             self.ring_clipped(ccx, ccy, r, gold, 55, 1.2);
         }
@@ -432,6 +430,26 @@ impl Renderer {
         self.text(ccx as i32 + cr as i32 + 6, ccy as i32 - 5, 10, "E", gold);
         self.text(ccx as i32 - 3, ccy as i32 + cr as i32 + 8, 10, "S", gold);
         self.text(ccx as i32 - cr as i32 - 16, ccy as i32 - 5, 10, "W", gold);
+    }
+
+    /// Hourly 0-23 zone labels along the map bottom. Labels depend only on the UTC hour,
+    /// so they change once on the full hour and never tick between frames.
+    fn draw_hour_zones(&mut self, now_ms: u64) {
+        let pal = self.pal;
+        let y = (MAP_Y + MAP_H - 14.) as i32;
+        for (lon, hour) in crate::timezones::labels(now_ms) {
+            let (x, _) = xy(lon, 90.);
+            let x = (x - 7.).clamp(MAP_X + 2., MAP_X + MAP_W - 22.);
+            self.text(x as i32, y, 10, &format!("{hour:02}"), pal.muted);
+        }
+    }
+
+    fn seeker_overlay(&mut self) {
+        let gold = self.pal.gold;
+        let cyan = self.pal.cyan;
+        self.rect_outline(14., 14., 1412., 872., gold, 150, 2.);
+
+        // Compass is drawn once by base_map(), shared with AtlasSOC.
 
         // Radar rings originate from the user's actual position.
         let (lat, lon) = match self.local_location {
@@ -858,6 +876,7 @@ impl Renderer {
         }
         self.update_routes(s, xy);
         self.draw_routes(s.now_ms, 212., 100.);
+        self.draw_hour_zones(s.now_ms);
         let (utc, local) = crate::clock::labels(s.now_ms);
         self.text(1044, 24, 18, &utc, pal.clock);
         self.text(1044, 50, 18, &local, pal.clock);
@@ -1015,7 +1034,7 @@ mod tests {
             .map(|b| format!("{b:02x}"))
             .collect();
         assert_eq!(
-            hex, "50306dd6d87fcd29a531fa7d87a5c23cefad229ed6533f1ee16a5553a2f0b3e5",
+            hex, "78b496f280abab34bd69837fb0c39f1ade30c2b0399c0d570796816c48e29cca",
             "Classic frame changed"
         );
     }
