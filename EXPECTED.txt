@@ -1,0 +1,24 @@
+Installed: AtlasSOC 0.8.0-rc.1 build 15, windows-x64 installer. Each line: channel -> outcome.
+'after base' = state already holds the base feed (rollback case).
+
+base                stable -> uptodate
+base                rc     -> uptodate
+base                beta   -> uptodate
+newer-rc            stable -> uptodate
+newer-rc            rc     -> available 0.8.0-rc.2 (rc)
+newer-rc            beta   -> available 0.8.0-rc.2 (rc)
+newer-stable        stable -> available 0.8.0 (stable)
+newer-stable        rc     -> available 0.8.0 (stable)
+newer-stable        beta   -> available 0.8.0 (stable)
+withdrawn           stable -> withdrawn, alternative 0.7.0
+withdrawn           rc     -> withdrawn, alternative 0.8.0-rc.2
+withdrawn           beta   -> withdrawn, alternative 0.8.0-rc.2
+rollback            stable -> failed(rollback) (after base)
+rollback            rc     -> failed(rollback) (after base)
+rollback            beta   -> failed(rollback) (after base)
+expired-delegation  stable -> failed(signature(unknownkey))
+expired-delegation  rc     -> failed(signature(unknownkey))
+expired-delegation  beta   -> failed(signature(unknownkey))
+bad-signature       stable -> failed(signature(badsignature))
+bad-signature       rc     -> failed(signature(badsignature))
+bad-signature       beta   -> failed(signature(badsignature))

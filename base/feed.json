@@ -1,0 +1,745 @@
+{
+  "generated_at": "2026-11-24T09:17:14Z",
+  "products": {
+    "atlassoc": {
+      "channels": {
+        "beta": {
+          "tag": "atlassoc-v0.7.0-beta.2",
+          "version": "0.7.0-beta.2"
+        },
+        "rc": {
+          "tag": "atlassoc-v0.8.0-rc.1",
+          "version": "0.8.0-rc.1"
+        },
+        "stable": {
+          "tag": "atlassoc-v0.7.0",
+          "version": "0.7.0"
+        }
+      },
+      "releases": [
+        {
+          "assets": [
+            {
+              "kind": "checksums",
+              "name": "AtlasSOC-v0.8.0-rc.1-SHA256SUMS.txt",
+              "platform": "any",
+              "sha256": "41f92a411a6845b3c39eeb54857b1b94c4c719c9e8506b8ffd05f1d5d7dd3487",
+              "size": 325,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0-rc.1/AtlasSOC-v0.8.0-rc.1-SHA256SUMS.txt"
+            },
+            {
+              "kind": "portable",
+              "name": "AtlasSOC-macOS-universal-v0.8.0-rc.1-build15.zip",
+              "platform": "macos-universal",
+              "sha256": "dcbf8313482328b2e35e794c66248f1d884415b14d744cf845c4e21b4bd0c8f0",
+              "size": 8336925,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0-rc.1/AtlasSOC-macOS-universal-v0.8.0-rc.1-build15.zip"
+            },
+            {
+              "kind": "installer",
+              "name": "AtlasSOC-Setup-0.8.0-build15.exe",
+              "platform": "windows-x64",
+              "sha256": "e86ecccc3f348de59d04af80637bae2e4d76829df27f8a4178e0bd39b31acc13",
+              "size": 4099642,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0-rc.1/AtlasSOC-Setup-0.8.0-build15.exe"
+            },
+            {
+              "kind": "portable",
+              "name": "AtlasSOC-Windows-x64-v0.8.0-rc.1-build15.zip",
+              "platform": "windows-x64",
+              "sha256": "9d5cc610cca083be41f6f381668a2c32aeb196bc5e6f6c7b458d89380396b91d",
+              "size": 2570099,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0-rc.1/AtlasSOC-Windows-x64-v0.8.0-rc.1-build15.zip"
+            }
+          ],
+          "build": 15,
+          "channel": "rc",
+          "notes_url": "https://github.com/Ibert-Iam/threat-atlas/releases/tag/atlassoc-v0.8.0-rc.1",
+          "published_at": "2026-11-15T19:54:43Z",
+          "tag": "atlassoc-v0.8.0-rc.1",
+          "version": "0.8.0-rc.1"
+        },
+        {
+          "assets": [
+            {
+              "kind": "checksums",
+              "name": "AtlasSOC-v0.7.0-SHA256SUMS.txt",
+              "platform": "any",
+              "sha256": "88e236b7cd26eae472f67f3001c19ad9246d89df42c9b64c0398463376f24da7",
+              "size": 415,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0/AtlasSOC-v0.7.0-SHA256SUMS.txt"
+            },
+            {
+              "kind": "checksums",
+              "name": "AtlasSOC-v0.7.0-linux-SHA256SUMS.txt",
+              "platform": "any",
+              "sha256": "a225e9a701cbc0222e773d9e9c5b9d7060febac3d700e54b7736511bfda58f3b",
+              "size": 217,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0-linux/AtlasSOC-v0.7.0-linux-SHA256SUMS.txt"
+            },
+            {
+              "kind": "portable",
+              "name": "AtlasSOC-Linux-x86_64-v0.7.0-build13-preview.tar.gz",
+              "platform": "linux-x64",
+              "sha256": "8f8adf9dba2606990aa9052eac1b3593efaaf128a377e86421793f768907df42",
+              "size": 1812428,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0-linux/AtlasSOC-Linux-x86_64-v0.7.0-build13-preview.tar.gz"
+            },
+            {
+              "kind": "portable",
+              "name": "AtlasSOC-macOS-universal-v0.7.0-build13-signed.zip",
+              "platform": "macos-universal",
+              "sha256": "f15fee1519b63b1e850823c84397f6917910ae4b473a7cc418dab8de17abce31",
+              "size": 7400662,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0/AtlasSOC-macOS-universal-v0.7.0-build13-signed.zip"
+            },
+            {
+              "kind": "installer",
+              "name": "AtlasSOC-Setup-0.7.0-build13.exe",
+              "platform": "windows-x64",
+              "sha256": "d19fe9ba1423eebf7b4e71919029e73a5aae90cb6bacc820b4ce71fd6d9f3f11",
+              "size": 3798825,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0/AtlasSOC-Setup-0.7.0-build13.exe"
+            },
+            {
+              "kind": "portable",
+              "name": "AtlasSOC-Windows-x64-v0.7.0-build13.zip",
+              "platform": "windows-x64",
+              "sha256": "e82b270b67718fe24081da853121e37fa7d223dcf8cdfe5c2c0000f37878db4b",
+              "size": 2128947,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0/AtlasSOC-Windows-x64-v0.7.0-build13.zip"
+            }
+          ],
+          "build": 13,
+          "channel": "stable",
+          "notes_url": "https://github.com/Ibert-Iam/threat-atlas/releases/tag/atlassoc-v0.7.0",
+          "published_at": "2026-11-11T11:31:49Z",
+          "tag": "atlassoc-v0.7.0",
+          "version": "0.7.0"
+        },
+        {
+          "assets": [
+            {
+              "kind": "checksums",
+              "name": "AtlasSOC-v0.7.0-rc.1-SHA256SUMS.txt",
+              "platform": "any",
+              "sha256": "362050f4237772b917e965bd67c1d138b6a0e9534388fce8bfb03e11627c6891",
+              "size": 413,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0-rc.1/AtlasSOC-v0.7.0-rc.1-SHA256SUMS.txt"
+            },
+            {
+              "kind": "checksums",
+              "name": "AtlasSOC-v0.7.0-rc.1-macOS-signed-SHA256.txt",
+              "platform": "any",
+              "sha256": "540648c06c8d76443877127ee5b8a90e09e0593a2ed130f34a12f963901bc8af",
+              "size": 117,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0-rc.1/AtlasSOC-v0.7.0-rc.1-macOS-signed-SHA256.txt"
+            },
+            {
+              "kind": "portable",
+              "name": "AtlasSOC-macOS-universal-v0.7.0-build12-signed.zip",
+              "platform": "macos-universal",
+              "sha256": "8bf3dd3d5315787e76584a2bf42b1e3da873acef3483dd42527d99d0ac9e20c7",
+              "size": 7399901,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0-rc.1/AtlasSOC-macOS-universal-v0.7.0-build12-signed.zip"
+            },
+            {
+              "kind": "portable",
+              "name": "AtlasSOC-macOS-universal-v0.7.0-build12.zip",
+              "platform": "macos-universal",
+              "sha256": "72c09365d7f2edd607d4ebe9c469a6d319e884dab2166e8a01819e9ce3a2d067",
+              "size": 7374177,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0-rc.1/AtlasSOC-macOS-universal-v0.7.0-build12.zip"
+            },
+            {
+              "kind": "installer",
+              "name": "AtlasSOC-Setup-0.7.0-build12.exe",
+              "platform": "windows-x64",
+              "sha256": "7100d2f310f9f7ce581599a15476caeac32af8c4027a70b00d7c6685af8a9978",
+              "size": 3795805,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0-rc.1/AtlasSOC-Setup-0.7.0-build12.exe"
+            },
+            {
+              "kind": "portable",
+              "name": "AtlasSOC-Windows-x64-v0.7.0-build12.zip",
+              "platform": "windows-x64",
+              "sha256": "334444d8cff29eb02aed7e7768dabefa5db90caac07e9439ab4400a4b656a5a2",
+              "size": 2130564,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0-rc.1/AtlasSOC-Windows-x64-v0.7.0-build12.zip"
+            }
+          ],
+          "build": 12,
+          "channel": "rc",
+          "notes_url": "https://github.com/Ibert-Iam/threat-atlas/releases/tag/atlassoc-v0.7.0-rc.1",
+          "published_at": "2026-11-09T19:10:32Z",
+          "tag": "atlassoc-v0.7.0-rc.1",
+          "version": "0.7.0-rc.1"
+        },
+        {
+          "assets": [
+            {
+              "kind": "installer",
+              "name": "AtlasSOC-Setup-0.7.0-build11.exe",
+              "platform": "windows-x64",
+              "sha256": "282f050404bcb800dd465f34b2b8dee7b67facb79aacb4c26ea9414eaa19f694",
+              "size": 3741988,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0-beta.2/AtlasSOC-Setup-0.7.0-build11.exe"
+            },
+            {
+              "kind": "portable",
+              "name": "AtlasSOC-Windows-x64-v0.7.0-build11.zip",
+              "platform": "windows-x64",
+              "sha256": "c9527f34ef579aa57087f280cb031cff5d90bc4be825a626e006856efbdc2715",
+              "size": 2054292,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0-beta.2/AtlasSOC-Windows-x64-v0.7.0-build11.zip"
+            }
+          ],
+          "build": 11,
+          "channel": "beta",
+          "notes_url": "https://github.com/Ibert-Iam/threat-atlas/releases/tag/atlassoc-v0.7.0-beta.2",
+          "published_at": "2026-11-05T13:12:26Z",
+          "tag": "atlassoc-v0.7.0-beta.2",
+          "version": "0.7.0-beta.2"
+        },
+        {
+          "assets": [
+            {
+              "kind": "checksums",
+              "name": "SHA256SUMS.txt",
+              "platform": "any",
+              "sha256": "c6275d06ee1ba2e6a08c7394aa57c2534f94f1a8a8a63acca7fadfbff210b5f8",
+              "size": 401,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0-beta.1/SHA256SUMS.txt"
+            },
+            {
+              "kind": "portable",
+              "name": "AtlasSOC-macOS-universal-v0.7.0-build10.zip",
+              "platform": "macos-universal",
+              "sha256": "665af1efd546cdbab9d53265ddd5f7523e1000e479cdb295b1413558d1f86d8c",
+              "size": 7100623,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0-beta.1/AtlasSOC-macOS-universal-v0.7.0-build10.zip"
+            },
+            {
+              "kind": "portable",
+              "name": "AtlasSOC-Windows-x64-v0.7.0-build10.zip",
+              "platform": "windows-x64",
+              "sha256": "866da4052e30eafe7530593d9613db910a6252c59e003b3c886cfc627f2ed0cb",
+              "size": 2009650,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0-beta.1/AtlasSOC-Windows-x64-v0.7.0-build10.zip"
+            }
+          ],
+          "build": 10,
+          "channel": "beta",
+          "notes_url": "https://github.com/Ibert-Iam/threat-atlas/releases/tag/atlassoc-v0.7.0-beta.1",
+          "published_at": "2026-11-02T21:06:45Z",
+          "tag": "atlassoc-v0.7.0-beta.1",
+          "version": "0.7.0-beta.1"
+        }
+      ],
+      "withdrawn": []
+    },
+    "screensaver": {
+      "channels": {
+        "beta": {
+          "tag": "v0.4.6-beta.1",
+          "version": "0.4.6-beta.1"
+        },
+        "rc": {
+          "tag": "v0.4.7-rc.1",
+          "version": "0.4.7-rc.1"
+        },
+        "stable": {
+          "tag": "v0.4.8",
+          "version": "0.4.8"
+        }
+      },
+      "releases": [
+        {
+          "assets": [
+            {
+              "kind": "checksums",
+              "name": "ThreatAtlas-v0.4.8-SHA256SUMS.txt",
+              "platform": "any",
+              "sha256": "3ad4ed6fb801fd1ed8a405a6b20ff410f47b3ade0bdf79a0a3c6164846dcd5c3",
+              "size": 389,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.8/ThreatAtlas-v0.4.8-SHA256SUMS.txt"
+            },
+            {
+              "kind": "checksums",
+              "name": "ThreatAtlas-v0.4.8-macOS-signed-SHA256.txt",
+              "platform": "any",
+              "sha256": "39f741f575fce37ddb64316d1d622f2c9cbd013db995d2729654125240e4b6d1",
+              "size": 95,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.8/ThreatAtlas-v0.4.8-macOS-signed-SHA256.txt"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-Linux-0.4.8-x86_64.tar.gz",
+              "platform": "linux-x64",
+              "sha256": "20837179f4efc0a0ac19cd1f336239a9f3fc094c6947186614d5aa08c4cad482",
+              "size": 1752066,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.8/ThreatAtlas-Linux-0.4.8-x86_64.tar.gz"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-macOS-signed.zip",
+              "platform": "macos-universal",
+              "sha256": "520d9d8844ded00b4b1c20a2f610e819afa075b3a5f2c79f72cede1d0af52cc7",
+              "size": 11411428,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.8/ThreatAtlas-macOS-signed.zip"
+            },
+            {
+              "kind": "installer",
+              "name": "ThreatAtlas-0.4.8-x64.msi",
+              "platform": "windows-x64",
+              "sha256": "fde978feb110d783a623caaba23d543024e9f3ad59f82cd5c441bf6aea70dba0",
+              "size": 1992704,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.8/ThreatAtlas-0.4.8-x64.msi"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-Windows-v0.4.8.zip",
+              "platform": "windows-x64",
+              "sha256": "e954e07d8096ac93868240a035af1785504cc6961b51fd88ea702c470fe8d642",
+              "size": 1748544,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.8/ThreatAtlas-Windows-v0.4.8.zip"
+            }
+          ],
+          "build": null,
+          "channel": "stable",
+          "notes_url": "https://github.com/Ibert-Iam/threat-atlas/releases/tag/v0.4.8",
+          "published_at": "2026-11-11T11:38:59Z",
+          "tag": "v0.4.8",
+          "version": "0.4.8"
+        },
+        {
+          "assets": [
+            {
+              "kind": "checksums",
+              "name": "ThreatAtlas-v0.4.7-rc.1-SHA256SUMS.txt",
+              "platform": "any",
+              "sha256": "5faa79e944ed1137256d25878d9e811458842706c87bcd156087f916419b8edb",
+              "size": 399,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.7-rc.1/ThreatAtlas-v0.4.7-rc.1-SHA256SUMS.txt"
+            },
+            {
+              "kind": "checksums",
+              "name": "ThreatAtlas-v0.4.7-rc.1-macOS-SHA256.txt",
+              "platform": "any",
+              "sha256": "2ebb446161c5c31883ed1ca032e9889c7a64394d5da5a5b327cb650f7bfb0bdd",
+              "size": 88,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.7-rc.1/ThreatAtlas-v0.4.7-rc.1-macOS-SHA256.txt"
+            },
+            {
+              "kind": "checksums",
+              "name": "ThreatAtlas-v0.4.7-rc.1-macOS-signed-SHA256.txt",
+              "platform": "any",
+              "sha256": "be48f28e8fc3929eca6010bfbd3806d2997e866ef7094ea74b22ea9e22a06189",
+              "size": 95,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.7-rc.1/ThreatAtlas-v0.4.7-rc.1-macOS-signed-SHA256.txt"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-Linux-0.4.7-x86_64.tar.gz",
+              "platform": "linux-x64",
+              "sha256": "954c10a7878373ac04ee33495f73eb88604121be442d39f3885d8c7c944e0c86",
+              "size": 1741313,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.7-rc.1/ThreatAtlas-Linux-0.4.7-x86_64.tar.gz"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-macOS-signed.zip",
+              "platform": "macos-universal",
+              "sha256": "d4382052b768c5bf673da4707605376ad5bab537afa7e69e7bcd2bb968e1c635",
+              "size": 11390736,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.7-rc.1/ThreatAtlas-macOS-signed.zip"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-macOS.zip",
+              "platform": "macos-universal",
+              "sha256": "0ecc854d0be1c77acf8dc76915c1878527aa67d348daa0fa091c007c6cc1d1cc",
+              "size": 11361439,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.7-rc.1/ThreatAtlas-macOS.zip"
+            },
+            {
+              "kind": "installer",
+              "name": "ThreatAtlas-0.4.7-x64.msi",
+              "platform": "windows-x64",
+              "sha256": "d62ef732ee9de52b447523d9d461dda365ab515a1cd01888fe702b91922ed942",
+              "size": 1990656,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.7-rc.1/ThreatAtlas-0.4.7-x64.msi"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-Windows-v0.4.7-rc.1.zip",
+              "platform": "windows-x64",
+              "sha256": "6dddd49fe3f02f67332fb11e2d8d13e87ec01353df727d24a0613aa3ee397e19",
+              "size": 1749746,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.7-rc.1/ThreatAtlas-Windows-v0.4.7-rc.1.zip"
+            }
+          ],
+          "build": null,
+          "channel": "rc",
+          "notes_url": "https://github.com/Ibert-Iam/threat-atlas/releases/tag/v0.4.7-rc.1",
+          "published_at": "2026-11-10T03:48:05Z",
+          "tag": "v0.4.7-rc.1",
+          "version": "0.4.7-rc.1"
+        },
+        {
+          "assets": [
+            {
+              "kind": "checksums",
+              "name": "ThreatAtlas-v0.4.6-beta.1-SHA256SUMS.txt",
+              "platform": "any",
+              "sha256": "7e464e80d92cd29bd671559b00f95529f5f2cd0e90358962b1f2b116f22c1a93",
+              "size": 299,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.6-beta.1/ThreatAtlas-v0.4.6-beta.1-SHA256SUMS.txt"
+            },
+            {
+              "kind": "installer",
+              "name": "ThreatAtlas-0.4.6-x64.msi",
+              "platform": "windows-x64",
+              "sha256": "809918e1629981f17a84a6fd36070c29f85c71977867b5130224bb505a114a01",
+              "size": 1988608,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.6-beta.1/ThreatAtlas-0.4.6-x64.msi"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-Windows-v0.4.6-beta.1.zip",
+              "platform": "windows-x64",
+              "sha256": "6c636ed554998cc08b00849cd3ecc5585a0df88b46bd5cabec077a9d4b0d8c75",
+              "size": 1747663,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.6-beta.1/ThreatAtlas-Windows-v0.4.6-beta.1.zip"
+            }
+          ],
+          "build": null,
+          "channel": "beta",
+          "notes_url": "https://github.com/Ibert-Iam/threat-atlas/releases/tag/v0.4.6-beta.1",
+          "published_at": "2026-11-09T18:22:05Z",
+          "tag": "v0.4.6-beta.1",
+          "version": "0.4.6-beta.1"
+        },
+        {
+          "assets": [
+            {
+              "kind": "checksums",
+              "name": "ThreatAtlas-Linux-SHA256SUMS.txt",
+              "platform": "any",
+              "sha256": "781ce089868f86087ccddfabf63c0d89e469a84c29d63161ea123566a2912803",
+              "size": 206,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.5/ThreatAtlas-Linux-SHA256SUMS.txt"
+            },
+            {
+              "kind": "checksums",
+              "name": "ThreatAtlas-Windows-SHA256SUMS.txt",
+              "platform": "any",
+              "sha256": "064bb6cf9cca283d147e1df8c485a9d83d79e69cafe4d24fd39cd6c6f6a99612",
+              "size": 293,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.5/ThreatAtlas-Windows-SHA256SUMS.txt"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-Linux-0.4.5-x86_64.tar.gz",
+              "platform": "linux-x64",
+              "sha256": "388edc530a70109dc695929a6698984980d0f9586050f36036112cf6bba21235",
+              "size": 1736595,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.5/ThreatAtlas-Linux-0.4.5-x86_64.tar.gz"
+            },
+            {
+              "kind": "installer",
+              "name": "ThreatAtlas-0.4.5-x64.msi",
+              "platform": "windows-x64",
+              "sha256": "709a6f6467c5ddf2cd58e6d183afcde36a241918ec344ed7f69925ac040ff91a",
+              "size": 1966080,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.5/ThreatAtlas-0.4.5-x64.msi"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-Windows-v0.4.5.zip",
+              "platform": "windows-x64",
+              "sha256": "bfc2131b359e251ee1f728da8b39379e35f735ad7bfa982883ea8c518b68de1b",
+              "size": 1727869,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.5/ThreatAtlas-Windows-v0.4.5.zip"
+            }
+          ],
+          "build": null,
+          "channel": "stable",
+          "notes_url": "https://github.com/Ibert-Iam/threat-atlas/releases/tag/v0.4.5",
+          "published_at": "2026-11-04T22:29:58Z",
+          "tag": "v0.4.5",
+          "version": "0.4.5"
+        },
+        {
+          "assets": [
+            {
+              "kind": "checksums",
+              "name": "ThreatAtlas-Linux-SHA256SUMS.txt",
+              "platform": "any",
+              "sha256": "0d218e9cfae191c786bc71ec87d566e4195cb8dc83672d29c4b9cf682126c7be",
+              "size": 206,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.4-rc.1/ThreatAtlas-Linux-SHA256SUMS.txt"
+            },
+            {
+              "kind": "checksums",
+              "name": "ThreatAtlas-Windows-SHA256SUMS.txt",
+              "platform": "any",
+              "sha256": "8f995a6fea2856583e00e265303f28bc1d859fd36b71a6b830006472e8340dcd",
+              "size": 298,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.4-rc.1/ThreatAtlas-Windows-SHA256SUMS.txt"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-Linux-0.4.4-x86_64.tar.gz",
+              "platform": "linux-x64",
+              "sha256": "1fb709e11ca8a9e4cd23362a1c5d48898454d83da3454ac97d5e88e60279e205",
+              "size": 1736481,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.4-rc.1/ThreatAtlas-Linux-0.4.4-x86_64.tar.gz"
+            },
+            {
+              "kind": "installer",
+              "name": "ThreatAtlas-0.4.4-x64.msi",
+              "platform": "windows-x64",
+              "sha256": "015f451bb3f56adcc23ebcc8c4dec9ac4bc6fdaf15e53910272820d5f531b500",
+              "size": 1966080,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.4-rc.1/ThreatAtlas-0.4.4-x64.msi"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-Windows-v0.4.4-rc.1.zip",
+              "platform": "windows-x64",
+              "sha256": "855bfbbd3811c73d25e830253b52eeadac5f65ecd81b5801177355512ef7a5bc",
+              "size": 1726172,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.4-rc.1/ThreatAtlas-Windows-v0.4.4-rc.1.zip"
+            }
+          ],
+          "build": null,
+          "channel": "rc",
+          "notes_url": "https://github.com/Ibert-Iam/threat-atlas/releases/tag/v0.4.4-rc.1",
+          "published_at": "2026-11-04T22:07:07Z",
+          "tag": "v0.4.4-rc.1",
+          "version": "0.4.4-rc.1"
+        },
+        {
+          "assets": [
+            {
+              "kind": "checksums",
+              "name": "ThreatAtlas-Windows-SHA256SUMS.txt",
+              "platform": "any",
+              "sha256": "2bccc45cfdaaf97b130b6ca9a70b4c1e25fddc53fd03e6123f8640ff43bf899c",
+              "size": 206,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.3-rc.1/ThreatAtlas-Windows-SHA256SUMS.txt"
+            },
+            {
+              "kind": "checksums",
+              "name": "ThreatAtlas-macOS-SHA256SUMS.txt",
+              "platform": "any",
+              "sha256": "8b78fd07df1db137f8e0c737eeb6d5053939cb4f80b6b8ad26142443e83cd47d",
+              "size": 190,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.3-rc.1/ThreatAtlas-macOS-SHA256SUMS.txt"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-macOS.zip",
+              "platform": "macos-universal",
+              "sha256": "7e3c59381eb368d66dc81c093664edabbbf066d788d116870f863afc7f483f89",
+              "size": 11198243,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.3-rc.1/ThreatAtlas-macOS.zip"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-Windows-v0.4.3-rc.1.zip",
+              "platform": "windows-x64",
+              "sha256": "08bb1ac3ad2cb0b390121dc3ee3d744ff021277031faccdf0a97aafcaa0716a8",
+              "size": 1717784,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.3-rc.1/ThreatAtlas-Windows-v0.4.3-rc.1.zip"
+            }
+          ],
+          "build": null,
+          "channel": "rc",
+          "notes_url": "https://github.com/Ibert-Iam/threat-atlas/releases/tag/v0.4.3-rc.1",
+          "published_at": "2026-11-04T20:10:42Z",
+          "tag": "v0.4.3-rc.1",
+          "version": "0.4.3-rc.1"
+        },
+        {
+          "assets": [
+            {
+              "kind": "checksums",
+              "name": "ThreatAtlas-v0.4.2-rc.1-SHA256SUMS.txt",
+              "platform": "any",
+              "sha256": "f9fcab272a2ceb8d0c1e10b021431f15c35536cefe2c987d21deac6ab67dd618",
+              "size": 487,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.2-rc.1/ThreatAtlas-v0.4.2-rc.1-SHA256SUMS.txt"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-Linux-0.4.2-x86_64.tar.gz",
+              "platform": "linux-x64",
+              "sha256": "b526c5b05a92c192179afbf034754ec585e3d866ab62fe98c3bb8ae8fd2f90ce",
+              "size": 1720867,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.2-rc.1/ThreatAtlas-Linux-0.4.2-x86_64.tar.gz"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-macOS.zip",
+              "platform": "macos-universal",
+              "sha256": "ebf7eec641ec2860efa3b1f6fee0d458af7e47000c332fc5ba6f9aa9e1eeda98",
+              "size": 10953185,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.2-rc.1/ThreatAtlas-macOS.zip"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-Windows-v0.4.2-rc.1.zip",
+              "platform": "windows-x64",
+              "sha256": "8607a0c1a1c7dc7fe3ce8dadd06870c8c9f4b1c64bb0e7cb54a363eca637d8ba",
+              "size": 1713633,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.2-rc.1/ThreatAtlas-Windows-v0.4.2-rc.1.zip"
+            }
+          ],
+          "build": null,
+          "channel": "rc",
+          "notes_url": "https://github.com/Ibert-Iam/threat-atlas/releases/tag/v0.4.2-rc.1",
+          "published_at": "2026-10-31T00:51:21Z",
+          "tag": "v0.4.2-rc.1",
+          "version": "0.4.2-rc.1"
+        },
+        {
+          "assets": [
+            {
+              "kind": "checksums",
+              "name": "ThreatAtlas-v0.4.1-rc.1-SHA256SUMS.txt",
+              "platform": "any",
+              "sha256": "198695db2e5eb0b5cec0b1c87648c329bec6c5ec23f5b57c9cb8f3bedd9fe74d",
+              "size": 383,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.1-rc.1/ThreatAtlas-v0.4.1-rc.1-SHA256SUMS.txt"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-macOS.zip",
+              "platform": "macos-universal",
+              "sha256": "e658b0e8a512eb620f5a636acb339f79bc21df84c40e6d54c7a9d66582ebc56c",
+              "size": 10470676,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.1-rc.1/ThreatAtlas-macOS.zip"
+            },
+            {
+              "kind": "installer",
+              "name": "ThreatAtlas-0.4.1-x64.msi",
+              "platform": "windows-x64",
+              "sha256": "dcf646420c9f528782f9fa88b840dedb1040d84f449ce8621d8be3bd32ce107e",
+              "size": 1819136,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.1-rc.1/ThreatAtlas-0.4.1-x64.msi"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-Windows-v0.4.1-rc.1.zip",
+              "platform": "windows-x64",
+              "sha256": "10c224677c684aa2843f75b31bc1479441bc39a8c79634a3cc2f646a1a72910d",
+              "size": 1586471,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.1-rc.1/ThreatAtlas-Windows-v0.4.1-rc.1.zip"
+            }
+          ],
+          "build": null,
+          "channel": "rc",
+          "notes_url": "https://github.com/Ibert-Iam/threat-atlas/releases/tag/v0.4.1-rc.1",
+          "published_at": "2026-10-29T21:19:38Z",
+          "tag": "v0.4.1-rc.1",
+          "version": "0.4.1-rc.1"
+        },
+        {
+          "assets": [
+            {
+              "kind": "checksums",
+              "name": "ThreatAtlas-v0.4.0-SHA256SUMS.txt",
+              "platform": "any",
+              "sha256": "b5a305860ceac6b68c97779e961dc5540013bcedb2b0006722d2389e3a1f4791",
+              "size": 373,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.0/ThreatAtlas-v0.4.0-SHA256SUMS.txt"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-macOS.zip",
+              "platform": "macos-universal",
+              "sha256": "7eca317e928be829ccb140f05e27245aa8861033733685e6ada23425be2786fe",
+              "size": 10468904,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.0/ThreatAtlas-macOS.zip"
+            },
+            {
+              "kind": "installer",
+              "name": "ThreatAtlas-0.4.0-x64.msi",
+              "platform": "windows-x64",
+              "sha256": "76e0ac38f976e02eac79dde82417ba0aa0dd0ca32141d4df2622df72413dd333",
+              "size": 1818624,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.0/ThreatAtlas-0.4.0-x64.msi"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-Windows-v0.4.0.zip",
+              "platform": "windows-x64",
+              "sha256": "7716ddc32a9996efbf41b6b2ebae00d0ca85c70ae3b40f873e54f770d8daa4d1",
+              "size": 1586299,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.4.0/ThreatAtlas-Windows-v0.4.0.zip"
+            }
+          ],
+          "build": null,
+          "channel": "stable",
+          "notes_url": "https://github.com/Ibert-Iam/threat-atlas/releases/tag/v0.4.0",
+          "published_at": "2026-10-29T08:55:50Z",
+          "tag": "v0.4.0",
+          "version": "0.4.0"
+        },
+        {
+          "assets": [
+            {
+              "kind": "checksums",
+              "name": "ThreatAtlas-v0.3.0-SHA256SUMS.txt",
+              "platform": "any",
+              "sha256": "840ad322769a28cb04ebe13b448c30f1bbf212ebbb0be20d1d0c73530f562fbd",
+              "size": 380,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.3.0-rc.1/ThreatAtlas-v0.3.0-SHA256SUMS.txt"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-macOS-v0.3.0.zip",
+              "platform": "macos-universal",
+              "sha256": "0d8f6fb77be838d6ce6851ad6e6986602796759dce4832243695cdada5d87c05",
+              "size": 9733074,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.3.0-rc.1/ThreatAtlas-macOS-v0.3.0.zip"
+            },
+            {
+              "kind": "installer",
+              "name": "ThreatAtlas-0.3.0-x64.msi",
+              "platform": "windows-x64",
+              "sha256": "05570a5f96999317aff576d1ba4bfde70ca100798c58157bf3cd9bcad9e0405a",
+              "size": 1794048,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.3.0-rc.1/ThreatAtlas-0.3.0-x64.msi"
+            },
+            {
+              "kind": "portable",
+              "name": "ThreatAtlas-Windows-v0.3.0.zip",
+              "platform": "windows-x64",
+              "sha256": "1d1301f5a5e91c578fad74229a52e9f37f533de2ff23dce7b184b06bf3fc0a06",
+              "size": 1568284,
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/v0.3.0-rc.1/ThreatAtlas-Windows-v0.3.0.zip"
+            }
+          ],
+          "build": null,
+          "channel": "rc",
+          "notes_url": "https://github.com/Ibert-Iam/threat-atlas/releases/tag/v0.3.0-rc.1",
+          "published_at": "2026-10-28T18:57:00Z",
+          "tag": "v0.3.0-rc.1",
+          "version": "0.3.0-rc.1"
+        }
+      ],
+      "withdrawn": []
+    }
+  },
+  "schema_version": 1,
+  "signing_keys": [
+    {
+      "expires": "2027-02-22",
+      "key": "8e811231347aa61d7831afc3c779b32e8cdc5140af4e2bd480db0dac03a140c3",
+      "recovery_signature": "756f617cc0c69833688b9bcfaada1c7aef3c9617f7d52d71e8468b6e8a5d9fc770ba74139fb3fe7ce616bc59a1c6bbb62d95e6f11d73667d28f4782813b75808"
+    }
+  ]
+}
