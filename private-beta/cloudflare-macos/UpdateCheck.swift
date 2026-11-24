@@ -75,8 +75,9 @@ struct UpdateSection: View {
             do {
                 let (feed, sig) = try await fetchFeed()
                 let installed = installedVersion
+                let channelCode = channel
                 let text = try await Task.detached { () -> (UpdateOutcome, String, URL?) in
-                    try runCheck(feed: feed, sig: sig, installedVersion: installed, channel: channel)
+                    try runCheck(feed: feed, sig: sig, installedVersion: installed, channel: channelCode)
                 }.value
                 await MainActor.run {
                     status = text.0.label
