@@ -78,6 +78,8 @@ chrono (RUSTSEC-2026-0543, unmaintained) was replaced by jiff in the core and it
 Both unfiltered and reviewed audit outputs are included in `evidence/`.
 The CI audit fails on new, unreviewed warnings/vulnerabilities. These exceptions
 must be revisited when updating dependencies or adding Linux/custom-font support.
+The PR/push audit runs in `build.yml`; `.github/workflows/audit.yml` runs the same
+pinned `cargo-audit 0.22.2` daily at 04:17 UTC and can be started manually.
 
 ## Hardening round for 0.8.0-rc.1
 
