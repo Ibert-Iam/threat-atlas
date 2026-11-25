@@ -40,6 +40,7 @@ CREDITS = {"ok", "low", "empty", "unknown"}
 LEGACY_CREDITS = {"available": "ok", "low": "low", "exhausted": "empty", "unknown": "unknown"}
 LOW_WEEKLY_PERCENT = 15   # Claude and Codex plans: below this share of the weekly limit is low
 LOW_BALANCE_USD = 1.0     # DeepSeek: below this balance is low
+FULL_BALANCE_USD = 50.0   # DeepSeek: full end of the gauge (owner decision 25 Nov 2026)
 STALL_MINUTES = 180       # shown on the page; the private alert job uses the same value
 ALERT_HOURS = [7, 22]     # Europe/Stockholm, alerts only inside this window
 CREDITS_MAX_AGE = 24 * 3600  # an older credit reading is shown as unknown
@@ -94,7 +95,7 @@ def credit_reading(credits):
         balance = number(credits.get("remaining"))
     if balance is None or not math.isfinite(balance):
         return None
-    return {"kind": "usd", "value": round(balance, 2), "full": None}  # no maximum decided yet
+    return {"kind": "usd", "value": round(balance, 2), "full": FULL_BALANCE_USD}
 
 
 def from_status(raw, now):

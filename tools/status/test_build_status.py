@@ -111,8 +111,8 @@ class Products(unittest.TestCase):
 class Readings(unittest.TestCase):
     def test_figures(self):
         for given, want in (({"weekly_percent_remaining": 34}, {"kind": "weekly_percent", "value": 34}),
-                            ({"balance_usd": 49.248574}, {"kind": "usd", "value": 49.25, "full": None}),
-                            ({"currency": "USD", "remaining": 2}, {"kind": "usd", "value": 2, "full": None}),
+                            ({"balance_usd": 49.248574}, {"kind": "usd", "value": 49.25, "full": 50.0}),
+                            ({"currency": "USD", "remaining": 2}, {"kind": "usd", "value": 2, "full": 50.0}),
                             ({"weekly_percent_remaining": 140}, None), ({"weekly_percent_remaining": -1}, None),
                             ({"balance_usd": float("inf")}, None), ({"balance_usd": "5"}, None),
                             ({"balance_usd": True}, None), ({"status": "ok"}, None), (None, None)):
