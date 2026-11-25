@@ -2,19 +2,20 @@ import SwiftUI
 import AppKit
 
 /// Guide for adding the user's own API keys; lives on GitHub to keep the app small.
-let osintKeyGuideURL = URL(string: "https://github.com/ibert-ai/threat-atlas/blob/atlassoc-v0.8.0-rc.1/docs/OSINT-API-KEYS.md")!
+let osintKeyGuideURL = URL(string: "https://github.com/Ibert-Iam/threat-atlas/blob/atlassoc-v0.8.0-rc.1/docs/OSINT-API-KEYS.md")!
 /// Copy-and-paste prompt for any AI assistant, with a plain list of what it does and does not do.
-let osintAIGuideURL = URL(string: "https://github.com/ibert-ai/threat-atlas/blob/atlassoc-v0.8.0-rc.1/docs/OSINT-API-KEYS.md#ai-guide")!
-let releasesURL = URL(string: "https://github.com/ibert-ai/threat-atlas/releases")!
+let osintAIGuideURL = URL(string: "https://github.com/Ibert-Iam/threat-atlas/blob/atlassoc-v0.8.0-rc.1/docs/OSINT-API-KEYS.md#ai-guide")!
+let releasesURL = URL(string: "https://github.com/Ibert-Iam/threat-atlas/releases")!
 /// Voluntary tip page. Tips are optional, give nothing extra and never unlock features.
 let supportURL = URL(string: "https://ko-fi.com/threatatlas")!
-let supportInfoURL = URL(string: "https://github.com/ibert-ai/threat-atlas/blob/atlassoc-v0.8.0-rc.1/docs/SUPPORT.md")!
+let supportInfoURL = URL(string: "https://github.com/Ibert-Iam/threat-atlas/blob/atlassoc-v0.8.0-rc.1/docs/SUPPORT.md")!
 
 struct OsintPage: Identifiable { let id = UUID(); let title: String; let text: String }
 
 /// The one Settings window: data sources on/off, viewing data, key guide, updates and the Radar token.
 struct OsintSettingsView: View {
     @ObservedObject private var osint = OsintController.shared
+    @ObservedObject private var updates = UpdateController.shared
     @State private var page: OsintPage?
     @State private var confirmLookup: String?
     @State private var keyFor: OsintSource?
@@ -92,9 +93,27 @@ struct OsintSettingsView: View {
                 Button("Where the money goes (opens GitHub)…") { NSWorkspace.shared.open(supportInfoURL) }
             }
             Section("Updates") {
-                Text("Installed: AtlasSOC \(version). Download the version for your Mac from the official releases page.")
-                    .font(.callout).foregroundStyle(.secondary)
-                Button("Open release downloads…") { NSWorkspace.shared.open(releasesURL) }
+                Text("Installed: AtlasSOC \(version).").font(.callout).foregroundStyle(.secondary)
+                ForEach(updates.lines, id: \.self) { Text($0) }
+                Picker("Channel", selection: $updates.channel) {
+                    Text("Same as this build (\(UpdateResponse.channelName(atlasBuildChannel)))").tag("build")
+                    Text("Stable").tag("stable")
+                    Text("Release Candidates").tag("rc")
+                    Text("Betas").tag("beta")
+                }
+                if updates.channel == "rc" || updates.channel == "beta" {
+                    Text("Pre-release versions can contain bugs. If a pre-release is pulled, you are offered the next safer version.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                HStack {
+                    Button("Check for updates now") { updates.checkNow() }.disabled(updates.checking)
+                    if let offer = updates.activeOffer, let page = offer.releasePage {
+                        Button("Open the release page for \(offer.version)…") { NSWorkspace.shared.open(page) }
+                    }
+                }
+                Text("AtlasSOC never installs anything by itself. Download the new version from its release page.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Button("All releases…") { NSWorkspace.shared.open(releasesURL) }
             }
         }
         .formStyle(.grouped)
