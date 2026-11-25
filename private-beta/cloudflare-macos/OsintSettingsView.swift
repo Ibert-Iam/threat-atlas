@@ -107,7 +107,7 @@ struct OsintSettingsView: View {
                 }
                 HStack {
                     Button("Check for updates now") { updates.checkNow() }.disabled(updates.checking)
-                    if let offer = updates.response?.offer, let page = offer.releasePage {
+                    if let offer = updates.activeOffer, let page = offer.releasePage {
                         Button("Open the release page for \(offer.version)…") { NSWorkspace.shared.open(page) }
                     }
                 }
