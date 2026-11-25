@@ -1,6 +1,20 @@
-## AtlasSOC Desktop 0.8.0-rc.2 — unreleased
+## AtlasSOC Desktop 0.8.0-rc.2 — release candidate 2, unreleased, build 16
 
-- Spread sampled real observation arcs across incoming batches in Realtime mode, with at most one second of visual delay; receipt counters and source timestamps remain unchanged.
+Scope frozen on 24 November 2026; this entry is completed at the release gate.
+
+- Settings → Updates on Windows and macOS: a daily check of the signed update feed (Ed25519, offline owner key with
+  delegated signing key), channels Stable / Release Candidates / Betas, and a clear result for every outcome. A failed
+  check is never shown as "up to date".
+- Download and verify: the installer or app named in the signed feed is downloaded only after a click and checked
+  for exact size and SHA-256. On macOS it must also carry the official Developer ID and pass Gatekeeper. The Windows
+  installer opens in its normal window, and on macOS the checked app is shown in Finder. Nothing installs silently.
+- Stability: the feed worker stops promptly even when DNS is slow.
+- Realtime mode: sampled real observation arcs are spread across incoming batches, with at most one second of visual
+  delay; receipt counters and source timestamps remain unchanged.
+- Map: compass and hourly time-zone labels.
+- Fixes: help links in the Windows and macOS apps point to the public repository.
+- Hardening: dependency audit in CI.
+- Not in this release: Windows code signing.
 
 ## AtlasSOC Desktop 0.8.0-rc.1 — release candidate 1, 16 November 2026, build 15
 
