@@ -108,5 +108,23 @@ class Products(unittest.TestCase):
         self.assertTrue(b.same_content(a, c))
 
 
+class Readings(unittest.TestCase):
+    def test_figures(self):
+        for given, want in (({"weekly_percent_remaining": 34}, {"kind": "weekly_percent", "value": 34}),
+                            ({"balance_usd": 49.248574}, {"kind": "usd", "value": 49.25, "full": None}),
+                            ({"currency": "USD", "remaining": 2}, {"kind": "usd", "value": 2, "full": None}),
+                            ({"weekly_percent_remaining": 140}, None), ({"weekly_percent_remaining": -1}, None),
+                            ({"balance_usd": float("inf")}, None), ({"balance_usd": "5"}, None),
+                            ({"balance_usd": True}, None), ({"status": "ok"}, None), (None, None)):
+            self.assertEqual(b.credit_reading(given), want, given)
+
+    def test_old_reading_has_no_figure_but_keeps_its_time(self):
+        old = {"cl": {"updated_at": "2026-11-20T14:00:00Z",
+                      "credits": {"weekly_percent_remaining": 3, "checked_at": "2026-11-18T10:00:00Z"}}}
+        row = b.agent_rows(old, {}, None, NOW)[0]
+        self.assertEqual((row["credits"], row["credits_reading"], row["credits_checked_at"]),
+                         ("unknown", None, "2026-11-18T10:00:00Z"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
