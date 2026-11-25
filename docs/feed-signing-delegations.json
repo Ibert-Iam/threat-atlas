@@ -1,0 +1,11 @@
+{
+  "about": "Delegations of the update-feed signing key, each signed by the owner's offline recovery key (R1, key id 4a52c7c6add9e830). Public data; see docs/UPDATE-CHANNELS.md section 4. scripts/sign_feed.py copies the unexpired entries into feed.json as signing_keys.",
+  "signing_keys": [
+    {
+      "key": "1b0f14750dc683b348fa728ea2921ea287291d03d7b0b555b3c22036d57c0c8e",
+      "expires": "2027-02-21",
+      "recovery_signature": "8771d9d28e8c73e4fc31c66cb28a3abc7d599dccf0955c2546618725adeb93ef96c297e5671e97eb5930fc8a8e10b1fd9435212664a608fda90d597a75aa8e0b",
+      "note": "CL feed signing key 524c828be6e1600b, signed by Robert 2026-11-23"
+    }
+  ]
+}

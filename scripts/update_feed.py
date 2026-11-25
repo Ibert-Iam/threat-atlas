@@ -32,6 +32,9 @@ NUM = r"(0|[1-9]\d*)"
 VERSION_RE = re.compile(rf"^{NUM}\.{NUM}\.{NUM}(?:-(beta|rc)\.{NUM})?$")
 # The downloader uses the announced size as its cap, so the feed may not announce more than this.
 MAX_ASSET_BYTES = 512 * 1024 * 1024
+# The apps read the build as a 32-bit unsigned number; a larger one makes them reject the whole feed.
+MAX_BUILD = 2**32 - 1
+BUILD_RE = re.compile(r"(?<![A-Za-z0-9])build([0-9]+)(?![A-Za-z0-9])")
 TAGS = {  # product -> (tag regex with the version in group 1, linux-side tag suffix)
     "atlassoc": re.compile(r"^atlassoc-v(\d+\.\d+\.\d+(?:-(?:beta|rc)\.\d+)?)(-linux)?$"),
     "screensaver": re.compile(r"^v(\d+\.\d+\.\d+(?:-(?:beta|rc)\.\d+)?)$"),
@@ -91,6 +94,34 @@ def classify_asset(name):
     return None
 
 
+def builds_in(name):
+    """The build numbers written in an asset name ("...-build16.zip" -> {16}; normally none or one)."""
+    return {int(b) for b in BUILD_RE.findall(str(name))}
+
+
+def release_build(assets):
+    """The one usable build all asset names agree on, else None (validate reports names it does not match)."""
+    builds = set().union(*(builds_in(a["name"]) for a in assets))
+    build = builds.pop() if len(builds) == 1 else 0
+    return build if 1 <= build <= MAX_BUILD else None
+
+
+def build_problems(product, rel):
+    """Problems with a release's build. The macOS app refuses a download whose own build is not the offered one."""
+    build = rel.get("build")
+    if build is not None and (type(build) is not int or not 1 <= build <= MAX_BUILD):
+        return [f"build {build!r} must be null or an integer from 1 to {MAX_BUILD}"]
+    errors = []
+    for a in rel.get("assets", []):
+        named = builds_in(a.get("name"))
+        if named - {build}:
+            errors.append(f"{a.get('name')}: names build {sorted(named)}, the release has build {build}"
+                          + (" (the asset names do not agree on one usable build)" if build is None else ""))
+        elif product == "atlassoc" and a.get("platform") == "macos-universal" and not named:
+            errors.append(f"{a.get('name')}: a macOS file must name its build (-buildN)")
+    return errors
+
+
 def build_product(product, releases, withdrawn=()):
     """releases: GitHub release objects. Returns the feed block for one product."""
     tag_re = TAGS[product]
@@ -116,9 +147,6 @@ def build_product(product, releases, withdrawn=()):
             digest = (asset.get("digest") or "")
             if not cls or not digest.startswith("sha256:"):
                 continue
-            build = re.search(r"build(\d+)", asset["name"])
-            if build and entry["build"] is None:
-                entry["build"] = int(build.group(1))
             entry["assets"].append({
                 "platform": cls[0], "kind": cls[1], "name": asset["name"],
                 "url": f"{DOWNLOAD_PREFIX}{rel['tag_name']}/{asset['name']}",
@@ -130,6 +158,7 @@ def build_product(product, releases, withdrawn=()):
             entry["tag"] = entry["_tags"][0]
             entry["notes_url"] = f"https://github.com/{REPO}/releases/tag/{entry['tag']}"
         del entry["_tags"]
+        entry["build"] = release_build(entry["assets"])
         entry["assets"].sort(key=lambda a: (a["platform"], a["kind"], a["name"]))
         out.append(entry)
     block = {"channels": {}, "releases": out, "withdrawn": sorted(withdrawn, key=parse_version)}
@@ -184,6 +213,10 @@ def validate(feed):
             tags = {rel.get("tag"), f"{rel.get('tag')}-linux"}
             if not TAGS[pname].match(str(rel.get("tag"))):
                 errors.append(f"{pname} {v}: tag {rel.get('tag')!r} is not a {pname} tag")
+            # A withdrawn release is never offered, so its names must not block publishing the withdrawal.
+            # Its build must still be readable: the apps parse every release.
+            errors += [f"{pname} {v} {p}" for p in
+                       build_problems(pname, {**rel, "assets": []} if v in withdrawn else rel)]
             names = set()
             for a in rel.get("assets", []):
                 if not re.fullmatch(r"[0-9a-f]{64}", str(a.get("sha256", ""))):
