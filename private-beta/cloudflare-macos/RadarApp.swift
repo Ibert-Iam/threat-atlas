@@ -271,7 +271,7 @@ struct TokenSettings: View {
     init() { ta_soc_set_beta(radarReleaseStamp) }
     // The licence gate wraps everything: no feed, worker or Keychain access before acceptance.
     var body: some Scene {
-        WindowGroup { ConsentGate(terms: radarLicenseTerms) { RadarView().onAppear { OsintController.shared.start() } } }
+        WindowGroup { ConsentGate(terms: radarLicenseTerms) { RadarView().onAppear { OsintController.shared.start(); UpdateController.shared.start() } } }
             .commands {
                 CommandGroup(after: .appSettings) {
                     Button("Cloudflare Token…") { NotificationCenter.default.post(name: .showTokenSettings, object: nil) }

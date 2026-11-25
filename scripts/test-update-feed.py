@@ -222,6 +222,68 @@ class ValidationTests(unittest.TestCase):
             self.assertEqual(uf.main(["validate", str(path)]), 1)
 
 
+class BuildTests(unittest.TestCase):
+    """The macOS app refuses a download whose build differs from the feed's, so the feed must be exact."""
+
+    def made(self, *assets, product="atlassoc", withdrawn=()):
+        tag = "atlassoc-v0.8.0" if product == "atlassoc" else "v0.8.0"
+        f = uf.build_feed([rel(tag, assets=assets)], {"products": {product: {"withdrawn": list(withdrawn)}}}, now="x")
+        return f["products"][product]["releases"][0]["build"], uf.validate(f)
+
+    def test_agreeing_names_give_the_build(self):
+        self.assertEqual(self.made("macOS-vX-build16-signed.zip", "Setup-X-build16.exe", "SHA256SUMS.txt"), (16, []))
+
+    def test_disagreeing_names_are_refused_in_either_order(self):
+        for names in (("macOS-vX-build16.zip", "Setup-X-build15.exe"), ("Setup-X-build15.exe", "macOS-vX-build16.zip"),
+                      ("macOS-vX-build16-signed.zip", "macOS-vX-build15.zip"), ("macOS-vX-build15-build16.zip",)):
+            build, problems = self.made(*names)
+            self.assertIsNone(build, names)
+            self.assertTrue(any("do not agree" in p for p in problems), names)
+
+    def test_linux_side_release_with_another_build_is_refused(self):
+        f = uf.build_feed([rel("atlassoc-v0.8.0", assets=("macOS-vX-build16.zip",)),
+                           rel("atlassoc-v0.8.0-linux", assets=("Linux-build17.tar.gz",))], now="x")
+        self.assertTrue(any("do not agree" in p for p in uf.validate(f)))
+
+    def test_macos_file_without_its_own_build_is_refused(self):
+        for mac in ("macOS-vX.zip", "macOS-vX-rebuild16.zip", "macOS-vX-build16b.zip"):
+            _, problems = self.made(mac, "Setup-X-build16.exe")
+            self.assertTrue(any("must name its build" in p for p in problems), mac)
+
+    def test_other_files_and_the_screensaver_may_leave_the_build_out(self):
+        self.assertEqual(self.made("Setup-X.exe"), (None, []))
+        self.assertEqual(self.made("macOS-signed.zip", product="screensaver"), (None, []))
+
+    def test_edited_or_out_of_range_build_is_refused(self):
+        f = uf.build_feed([rel("atlassoc-v0.8.0", assets=("macOS-vX-build16.zip",))], now="x")
+        for bad in (15, None, True, "16", 16.0, 0, -1, 2**32):
+            f["products"]["atlassoc"]["releases"][0]["build"] = bad
+            self.assertTrue(any("build" in p for p in uf.validate(f)), bad)
+        f = uf.build_feed([rel("atlassoc-v0.8.0", assets=("macOS-vX-build1.zip",))], now="x")
+        self.assertEqual(uf.validate(f), [])
+        for equal_to_one in (True, 1.0):
+            f["products"]["atlassoc"]["releases"][0]["build"] = equal_to_one
+            self.assertTrue(any("must be null" in p for p in uf.validate(f)), equal_to_one)
+        f["products"]["atlassoc"].update(withdrawn=["0.8.0"], channels={})
+        f["products"]["atlassoc"]["releases"][0]["build"] = 2**32
+        self.assertTrue(any("must be null" in p for p in uf.validate(f)), "a withdrawn release must stay readable")
+        self.assertTrue(self.made("macOS-vX-build0.zip")[1])
+        self.assertTrue(self.made("macOS-vX-build4294967296.zip")[1])
+        self.assertEqual(self.made("macOS-vX-build4294967295.zip"), (2**32 - 1, []))
+
+    def test_a_badly_named_release_can_still_be_withdrawn(self):
+        self.assertEqual(self.made("macOS-vX-build16.zip", "Setup-X-build15.exe", withdrawn=["0.8.0"]), (None, []))
+        self.assertEqual(self.made("macOS-vX.zip", withdrawn=["0.8.0"])[1], [])
+        self.assertEqual(self.made("macOS-vX-build4294967296.zip", withdrawn=["0.8.0"]), (None, []))
+
+    def test_from_github_writes_no_feed_when_builds_disagree(self):
+        with tempfile.TemporaryDirectory() as d:
+            src, out = pathlib.Path(d) / "releases.json", pathlib.Path(d) / "feed.json"
+            src.write_text(json.dumps([rel("atlassoc-v0.8.0", assets=("macOS-vX-build16.zip", "Setup-X-build15.exe"))]))
+            self.assertEqual(uf.main(["from-github", "--out", str(out), "--releases-json", str(src)]), 1)
+            self.assertFalse(out.exists())
+
+
 class SharedFixtureTests(unittest.TestCase):
     """The same cases are checked by scripts/test-get-latest.ps1 against the PowerShell resolver."""
 

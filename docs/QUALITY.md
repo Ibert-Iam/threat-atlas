@@ -139,6 +139,65 @@ to 348, threads 12 to 9, CPU time 586 s in total (about 13 % of one core on aver
 The owner set the soak length to one hour for RC1; this is not a multi-hour soak. A second PC was assigned a
 30-minute soak; it is not part of this record unless its report is added to the release record.
 
+## Security review RC2 (part 1)
+
+Done 24 November 2026 for AtlasSOC 0.8.0-rc.2 (release gate 2), by the coding lead. This is the author-side
+review; the independent review is a separate gate item. Nothing here is a guarantee that the program is free of
+faults.
+
+**Scope.** Every change merged between tag `atlassoc-v0.8.0-rc.1` (4434b91) and `main` at 4807d49 in `crates`,
+`private-beta`, `scripts`, `.github` and `Cargo.lock` (56 files, about 6,600 lines added). Order of attention:
+the update path (`update_feed.rs`, `update_check.rs`, `feed_signature.rs`, Windows `soc_updates.rs` and
+`soc_update.rs`), the C interfaces (`saver_ffi.rs`, `saver.rs`, `osint_ffi.rs`), settings and state files
+(`saver_config.rs`, `soc_config.rs`), OSINT parsers and the worker, WinHTTP (`soc_radar.rs`), key handling
+(Credential Manager in `saver_host.rs`), the scripts (`get-latest.ps1`, `get-latest.sh`, `update_feed.py`,
+`update-atlassoc.ps1`, `sign-release-windows.ps1`) and the workflows. Open pull requests #143, #146, #152, #155,
+#156, #157, #158 and #159 were read only for what this code depends on (#148 is already merged and in scope).
+
+**Method.** Manual reading of the full diff with a threat model of: a network attacker, a compromised or
+replayed feed, a stolen delegated signing key, a malicious GitHub release (repository write access), hostile
+OSINT payloads, and a host program misusing the C interface. Each finding below was traced to the code path
+that reaches it. `cargo fmt --check`, `cargo test --workspace --locked` and `cargo clippy -D warnings` pass at
+4807d49.
+
+**What holds.** The feed signature check is strict and fails closed: only R1 or an unexpired R1-signed
+delegation is trusted, delegations cannot reach more than 400 days ahead, domain-separation strings stop a feed
+signature from counting as a delegation, the signature line format is exact and size-capped. The check order
+(trust root, signature, parse, timestamp, rollback mark) is correct, the rollback mark only moves forward and
+only after acceptance, and a failed download is reported as failed, never as up to date. Download URLs taken from the feed are
+compared by parsed parts (owner, repository, tag, file name), not by prefix, in Rust, Python and PowerShell
+alike. The saver reads the settings file with a size cap, drops unknown source ids, validates watch domains
+again in the worker, and requests nothing while every source is off. Keys come from Credential Manager
+in memory only; the C key callback is bounded by its capacity and its scratch buffer is cleared.
+
+**Findings.**
+
+| # | Severity | Where | Failure scenario | Fix | State |
+|---|---|---|---|---|---|
+| 1 | Medium | `crates/windows/src/soc_update.rs:173`, `scripts/update-atlassoc.ps1:49,119` | Settings → Updates offers a version from the signed feed, but "Install with the update script" ignores that offer: the script picks the newest release from the unauthenticated GitHub releases API and checks its SHA-256 against the digest GitHub itself reports. Anyone who can publish a release (a leaked repository token) gets that file installed, a withdrawn version can be installed, and the feed signature protects nothing at install time. Windows builds are not code-signed, so nothing else catches it. | Download exactly the asset the signed feed selected, check its size and the feed's SHA-256, and stop running the script from the app. | Open at 4807d49; fixed by PR #156 (download, verify, hand over to the installer; the app no longer runs the script). **The RC2 commit must contain #156.** |
+| 2 | Low | `crates/windows/src/soc_radar.rs:404` | `https_get_public` follows any redirect, including HTTPS → HTTP, so a redirecting public source could be read over plain HTTP. No key travels on this path. | Refuse redirects that leave HTTPS. | Open at 4807d49; fixed by PR #156 (hardening part). |
+| 3 | Low | `scripts/get-latest.sh:57`, `scripts/get-latest.ps1:92` | The download scripts still refuse to run without `--allow-unsigned-feed` / `-AllowUnsignedFeed` and then trust the feed by HTTPS alone. Now that the feed is signed, a user of the scripts gets less protection than the apps. Explicit opt-in, and documented. | Verify `feed.json.sig` in the scripts (or point users to the apps) once signing is live. | Open, follow-up. |
+| 4 | Low | `scripts/get-latest.ps1:102,126` | The feed size cap is checked after the whole response is read, and the asset download has no size cap until it completes (the size and hash are checked afterwards, so nothing unverified is kept). A hostile server can only waste bandwidth and disk until the timeout. | Stream with a byte limit. | Open, follow-up. |
+| 5 | Low | `crates/core/src/feed_signature.rs:184` | Delegation expiry uses the device clock. A device whose clock is set back keeps trusting an expired (possibly stolen) delegated key. Needs both a wrong clock and control of the published feed. | Accepted by design (no trusted time source); the rollback mark limits replay. | Accepted. |
+| 6 | Low | `crates/core/src/saver.rs:162-216`, `crates/core/src/saver_ffi.rs:144` | Only `ta_saver_new`, `ta_saver_frame`, `ta_saver_worker_start` and `ta_saver_worker_reload` are wrapped in `catch_unwind`. A panic inside `set_intel`, `fit*`, `drop` or `worker_stop` aborts the host process (defined behaviour since Rust 1.81, so no memory unsafety). | Wrap the remaining exports, or document abort-on-panic. | Open, follow-up. |
+| 7 | Low | `crates/core/src/saver_ffi.rs:38` | Resolved API keys are plain `String`s; they are not wiped from memory on drop. Readable only by a process with the same user's rights. | Optional: a zeroising wrapper. | Accepted. |
+| 8 | Low | `crates/core/src/feed.rs:271` | A hung DNS lookup leaves its detached thread running; repeated reconnects during a long DNS outage add one thread each until the lookups return. Bounded by the reconnect back-off. | None needed now; noted for soak tests. | Accepted. |
+| 9 | Info | `.github/workflows/audit.yml:15`, `build.yml`, `agent-health.yml` | `actions/checkout` keeps its default `persist-credentials: true`; most jobs have read-only `contents` permission. Two have `contents: write`: the manual `publish` job (`build.yml:115`) and `agent-health.yml:16`; where they check out the repository, a write token stays on the runner until the job ends. | Add `persist-credentials: false` where no push follows. | Open, hygiene. |
+
+No High finding. One Medium, open at 4807d49 and closed for RC2 only if the RC2 commit contains PR #156.
+
+**Dependencies on open pull requests.**
+- #156 closes findings 1 and 2. #157 is stacked on #152 and #156 and contains the same Windows change, so #156
+  should merge first and #157 then reduces to its macOS part.
+- #155 adds a `test-feed` Cargo feature that reads a test trust root and feed path from the environment. It is
+  safe only while release builds never enable that feature; a CI check that release artefacts are built without
+  it is recommended.
+- #143 and #159 change `update_check.rs` and add the signing tool and the daily feed check; #152 adds the macOS
+  update FFI (`update_ffi.rs`) that #157 extends. These are outside part 1 and need their own review before
+  merge.
+- `scripts/update_feed.py` builds a feed without `signing_keys`; the signing step in #143 has to add the
+  delegation, or apps will accept only a feed signed directly with R1.
+
 ## Still requiring acceptance testing
 
 - MSI installation, upgrade, rollback, user-launched setup and uninstallation on

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Offline tests for scripts/sign_feed.py: refusal rules and delegation handling (no signing, no network)."""
+import contextlib
 import datetime as dt
 import importlib.util
+import io
 import json
 import os
 import pathlib
@@ -120,6 +122,103 @@ class OutputPreservationTests(unittest.TestCase):
              mock.patch.object(sf.os, "replace", side_effect=flaky):
             self.assertEqual(self.run_main(), 1)
         self.assert_untouched()
+
+
+    def run_failing(self, error, copy=None, move=()):
+        """Runs main with the given copy number and move numbers raising `error`; returns stderr."""
+        line = "ed25519 0000000000000000 " + "0" * 128
+        real = {"copy2": sf.shutil.copy2, "replace": os.replace}
+        count = {"copy2": 0, "replace": 0}
+
+        def flaky(name, failing):
+            def call(src, dst):
+                count[name] += 1
+                if count[name] in failing:
+                    raise error
+                return real[name](src, dst)
+            return call
+        stderr = io.StringIO()
+        with mock.patch.object(sf, "run_signer", return_value=(True, line)), \
+             mock.patch.object(sf, "run_verifier", return_value=(True, "OK")), \
+             mock.patch.object(sf.shutil, "copy2", side_effect=flaky("copy2", (copy,))), \
+             mock.patch.object(sf.os, "replace", side_effect=flaky("replace", move)), \
+             contextlib.redirect_stderr(stderr):
+            if isinstance(error, OSError):
+                self.assertEqual(self.run_main(), 1)
+            else:
+                with self.assertRaises(type(error)):
+                    self.run_main()
+        return stderr.getvalue()
+
+    def test_failure_or_interrupt_at_every_step_keeps_the_last_pair(self):
+        for error in (OSError("disk full"), KeyboardInterrupt()):
+            for step in ({"copy": 1}, {"copy": 2}, {"copy": 3}, {"copy": 4}, {"move": (1,)}, {"move": (2,)}):
+                with self.subTest(error=error, step=step):
+                    self.run_failing(error, **step)
+                    self.assert_untouched()
+
+    def test_failure_without_an_old_pair_leaves_nothing_behind(self):
+        for old in ((), ("feed.json",), ("feed.json.sig",)):
+            for step in (1, 2):
+                with self.subTest(old=old, step=step):
+                    for name in ("feed.json", "feed.json.sig"):
+                        (self.out / name).unlink(missing_ok=True)
+                    for name in old:
+                        (self.out / name).write_text("OLD")
+                    self.run_failing(OSError("disk full"), move=(step,))
+                    self.assertEqual({p.name: p.read_text() for p in self.out.iterdir()}, {n: "OLD" for n in old})
+
+    def test_a_second_interrupt_during_the_restore_keeps_the_backup(self):
+        line = "ed25519 0000000000000000 " + "0" * 128
+        real, moves = os.replace, []
+
+        def interrupted(src, dst):
+            moves.append(dst)
+            if len(moves) in (2, 3):
+                raise KeyboardInterrupt
+            return real(src, dst)
+        with mock.patch.object(sf, "run_signer", return_value=(True, line)), \
+             mock.patch.object(sf, "run_verifier", return_value=(True, "OK")), \
+             mock.patch.object(sf.os, "replace", side_effect=interrupted), \
+             contextlib.redirect_stderr(io.StringIO()) as stderr:
+            self.assertEqual(self.run_main(), 1)
+        [stage] = [p for p in self.out.iterdir() if p.is_dir()]
+        self.assertEqual((stage / "old-feed.json").read_text(), "LAST GOOD FEED")
+        self.assertEqual((stage / "old-feed.json.sig").read_text(), "LAST GOOD SIG")
+        self.assertIn("KeyboardInterrupt", stderr.getvalue())
+
+    def test_a_failed_restore_keeps_the_backup_and_says_where(self):
+        # (2, 3): the feed is not put back, the signature is; (2, 4): the other way round; (2, 3, 4): neither.
+        for failing in ((2, 3), (2, 4), (2, 3, 4)):
+            with self.subTest(failing=failing):
+                (self.out / "feed.json").write_text("LAST GOOD FEED")
+                (self.out / "feed.json.sig").write_text("LAST GOOD SIG")
+                stderr = self.run_failing(OSError("disk full"), move=failing)
+                [stage] = [p for p in self.out.iterdir() if p.is_dir()]
+                self.assertIn(str(stage), stderr)
+                self.assertNotIn("is in place", stderr)
+                self.assertIn("(old-feed.json, old-feed.json.sig)", stderr)
+                self.assertEqual((stage / "old-feed.json").read_text(), "LAST GOOD FEED")
+                self.assertEqual((stage / "old-feed.json.sig").read_text(), "LAST GOOD SIG")
+                sf.shutil.rmtree(stage)
+
+    def test_a_failed_restore_names_only_the_files_that_existed(self):
+        for old, failing in (("feed.json", (2, 3)), ("feed.json.sig", (2, 3))):
+            with self.subTest(old=old):
+                for name in ("feed.json", "feed.json.sig"):
+                    (self.out / name).unlink(missing_ok=True)
+                (self.out / old).write_text("OLD")
+                stderr = self.run_failing(OSError("disk full"), move=failing)
+                [stage] = [p for p in self.out.iterdir() if p.is_dir()]
+                self.assertIn(f"(old-{old})", stderr)
+                self.assertEqual([p.name for p in stage.glob("old-*")], ["old-" + old])
+                sf.shutil.rmtree(stage)
+        for name in ("feed.json", "feed.json.sig"):
+            (self.out / name).unlink(missing_ok=True)
+        with mock.patch.object(sf.pathlib.Path, "unlink", side_effect=OSError("read-only")):
+            stderr = self.run_failing(OSError("disk full"), move=(2,))
+        self.assertIn("(there was none)", stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
