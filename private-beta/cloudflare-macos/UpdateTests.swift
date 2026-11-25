@@ -10,7 +10,7 @@ import Foundation
 
     /// Local HTTP fixture. Streams "/endless" until the client hangs up and counts the bytes it managed to send.
     static let server = #"""
-    import gzip, os, sys, threading, time
+    import gzip, os, socket, sys, threading, time
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     sent = [0]; hits = [0]
     class H(BaseHTTPRequestHandler):
@@ -45,7 +45,9 @@ import Foundation
     s = ThreadingHTTPServer(("127.0.0.1", 0), H); s.daemon_threads = True
     # Ends with the test process, also when a check fails and it aborts.
     threading.Thread(target=lambda: (sys.stdin.read(), os._exit(0)), daemon=True).start()
-    print(s.server_port, flush=True); s.serve_forever()
+    # A port that accepts connections and never answers: an https download to it stays open.
+    hole = socket.socket(); hole.bind(("127.0.0.1", 0)); hole.listen(8)
+    print(s.server_port, hole.getsockname()[1], flush=True); s.serve_forever()
     """#
 
     @MainActor static func transfers() async throws {
@@ -57,7 +59,10 @@ import Foundation
         process.standardInput = Pipe()
         try process.run()
         defer { process.terminate() }
-        let port = String(decoding: pipe.fileHandleForReading.availableData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        let ports = String(decoding: pipe.fileHandleForReading.availableData, as: UTF8.self)
+            .split(whereSeparator: { $0.isWhitespace })
+        check(ports.count == 2, "the local server started")
+        let (port, hole) = (ports[0], ports[1])
         func at(_ path: String) -> URL { URL(string: "http://127.0.0.1:\(port)/\(path)")! }
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("update-tests-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -105,6 +110,42 @@ import Foundation
         try await settle()
         check(Date().timeIntervalSince(began) >= 3, "rapid changes: a cancelled older check does not end the newest one")
         check(c.response?.result == "failed" && c.activeOffer == nil, "and only the newest result is shown")
+
+        // Downloads follow the same rule; the download address never answers.
+        let packageOffer = UpdateResponse(json: Data(#"{"result":"available","newer":true,"offer":{"version":"0.9.0-beta.1","channel":"beta","tag":"atlassoc-v0.9.0-beta.1","asset":{"name":"a.zip","url":"https://127.0.0.1:\#(hole)/a.zip","sha256":"00","size":10}}}"#.utf8))!
+        c.channel = "beta"; try await settle(); c.apply(packageOffer)
+        check(c.downloadableOffer != nil, "a finished check can be downloaded")
+        c.checkNow()
+        c.downloadOffer()
+        check(c.download == .idle && c.downloadableOffer == nil, "no download can start from an old offer while a check runs")
+        try await settle(); c.apply(packageOffer)
+        c.downloadOffer()
+        check(c.download == .running("0.9.0-beta.1"), "a download starts from the active offer")
+        try await Task.sleep(nanoseconds: 300_000_000)
+        c.channel = "stable"
+        check(c.download == .idle, "a channel change stops the running download")
+        try await Task.sleep(nanoseconds: 500_000_000)
+        check(c.download == .idle, "and its late result is not shown")
+        try await settle(); c.apply(packageOffer)
+        c.downloadOffer()
+        check(c.download == .running("0.9.0-beta.1"), "a new download is not blocked by the old one")
+        c.channel = "beta"
+        try await settle()
+
+        // A failing download removes its own folder only.
+        let updates = dir.appendingPathComponent("updates-own")
+        let old = Task {
+            await UpdateController.fetchAndCheck(offer: packageOffer.offer!, raw: "{}", asset: packageOffer.offer!.asset!,
+                                                 session: session, updates: updates, bundleID: nil)
+        }
+        try await Task.sleep(nanoseconds: 300_000_000)
+        let newer = updates.appendingPathComponent("newer")
+        try FileManager.default.createDirectory(at: newer, withIntermediateDirectories: true)
+        old.cancel()
+        let ended = await old.value
+        check(ended == .failed("the download failed or was interrupted"), "a cancelled download ends as failed")
+        let left = try FileManager.default.contentsOfDirectory(atPath: updates.path)
+        check(left == ["newer"], "and leaves a newer download's folder alone")
     }
 
     static func main() async throws {
@@ -140,6 +181,72 @@ import Foundation
         check(atlasFeedVersion.hasPrefix(radarLicenseTerms.version), "feed version comes from the build identity")
         check(["stable", "rc", "beta"].contains(atlasBuildChannel), "build channel is a feed channel")
         try? FileManager.default.removeItem(at: dir)
+
+        // Download step: the app check (Developer ID team + Gatekeeper) and the core package check.
+        let id = "dev.threatatlas.private.radar"
+        let official = URL(fileURLWithPath: "/Applications/AtlasSOC.app")
+        if FileManager.default.fileExists(atPath: official.path) {
+            check(UpdateController.checkApp(official, bundleID: id) == nil, "the installed, notarized official app passes")
+        }
+        let calculator = URL(fileURLWithPath: "/System/Applications/Calculator.app")
+        check(UpdateController.checkApp(calculator, bundleID: id)?.contains("bundle identifier") == true,
+              "another app is refused on its bundle identifier")
+        if let adhoc = ProcessInfo.processInfo.environment["ADHOC_APP"] {
+            check(UpdateController.checkApp(URL(fileURLWithPath: adhoc), bundleID: id)?.contains("Developer ID") == true,
+                  "an ad-hoc signed build is refused (not the official team)")
+        }
+        let spoofDir = FileManager.default.temporaryDirectory.appendingPathComponent("update-tests-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: spoofDir) }
+        try FileManager.default.createDirectory(at: spoofDir, withIntermediateDirectories: true)
+        if let adhoc = ProcessInfo.processInfo.environment["ADHOC_APP"] {
+            let spoof = spoofDir.appendingPathComponent("x\nTeamIdentifier=\(UpdateController.expectedTeam)\nz.app")
+            try FileManager.default.copyItem(at: URL(fileURLWithPath: adhoc), to: spoof)
+            check(UpdateController.checkApp(spoof, bundleID: id)?.contains("Developer ID") == true,
+                  "a folder name that imitates the team line is refused")
+        }
+        if FileManager.default.fileExists(atPath: official.path) {
+            let renamed = spoofDir.appendingPathComponent("Other.app")
+            try FileManager.default.copyItem(at: official, to: renamed)
+            check(UpdateController.checkApp(renamed, bundleID: id)?.contains("name") == true, "the official app under another name is refused")
+        }
+
+        // Cleanup: folders in use by any instance stay. Locks taken here stand for other processes.
+        let support = spoofDir.appendingPathComponent("support")
+        let store = support.appendingPathComponent("updates")
+        func folder(_ name: String) throws -> URL {
+            let f = store.appendingPathComponent(name)
+            try FileManager.default.createDirectory(at: f.appendingPathComponent("app/AtlasSOC.app"), withIntermediateDirectories: true)
+            return f
+        }
+        func exists(_ f: URL) -> Bool { FileManager.default.fileExists(atPath: f.path) }
+        let used = try folder("used"), stale = try folder("stale"), fresh = try folder("fresh"), old = try folder("old")
+        var usedLock = FolderLock(used)
+        check(usedLock != nil && FolderLock(used) != nil, "two users can hold one folder")
+        _ = FolderLock(stale)
+        try FileManager.default.setAttributes([.creationDate: Date(timeIntervalSinceNow: -7200)], ofItemAtPath: old.path)
+        _ = UpdateController(directory: support)
+        check(exists(used), "a second instance keeps a download in use")
+        check(!exists(stale), "and removes one nobody uses")
+        check(exists(fresh) && !exists(old), "a folder without a lock is kept only while it is new")
+        usedLock = nil
+        var runner: UpdateController? = UpdateController(directory: support, bundle: used.appendingPathComponent("app/AtlasSOC.app"))
+        check(runner != nil && exists(used), "an app started from its download folder does not delete itself")
+        _ = UpdateController(directory: support)
+        check(exists(used), "nor does another instance while it runs")
+        runner = nil
+        _ = UpdateController(directory: support)
+        check(!exists(used), "after it quits the folder is removed")
+        check(UpdateController.downloadFolder(of: URL(fileURLWithPath: "/Applications/AtlasSOC.app"), in: store) == nil,
+              "an installed app is in no download folder")
+
+        let payload = Data("zip bytes".utf8)
+        let offer: [String: Any] = ["version": "0.8.0", "channel": "stable", "tag": "atlassoc-v0.8.0", "build": 16,
+            "asset": ["platform": "macos-universal", "kind": "portable", "name": "AtlasSOC-macOS-universal-v0.8.0-build16.zip",
+                      "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0/AtlasSOC-macOS-universal-v0.8.0-build16.zip",
+                      "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "size": payload.count]]
+        let raw = String(data: try! JSONSerialization.data(withJSONObject: offer), encoding: .utf8)!
+        let code = raw.withCString { o in payload.withUnsafeBytes { ta_update_verify_package(o, $0.bindMemory(to: UInt8.self).baseAddress, payload.count) } }
+        check(code == 5 && UpdateController.packageText(code).contains("SHA-256"), "a wrong SHA-256 is refused by the core")
         try await transfers()
         print("PASS: update check over the core, offline")
     }
