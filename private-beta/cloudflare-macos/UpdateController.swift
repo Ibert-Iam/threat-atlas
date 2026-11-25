@@ -301,14 +301,15 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
         guard run("/usr/bin/ditto", ["-x", "-k", zip.path, unpacked.path]).status == 0 else { return fail("the package could not be unpacked") }
         let apps = (try? fm.contentsOfDirectory(at: unpacked, includingPropertiesForKeys: nil))?.filter { $0.pathExtension == "app" } ?? []
         guard apps.count == 1, let app = apps.first else { return fail("the package does not contain exactly one app") }
-        if let why = checkApp(app, bundleID: bundleID) { return fail(why) }
+        if let why = checkApp(app, version: offer.version, build: offer.build, bundleID: bundleID) { return fail(why) }
         if Task.isCancelled { return fail("the download failed or was interrupted") }
         return .ready(ReadyDownload(version: offer.version, tag: offer.tag, sha256: asset.sha256, app: app, lock: lock))
     }
 
     /// nil when the app is the official one: same bundle identifier as this app, a valid strict code
-    /// signature, the official Developer ID team and a Gatekeeper (notarization) pass. Otherwise the reason.
-    static func checkApp(_ app: URL, bundleID: String? = Bundle.main.bundleIdentifier) -> String? {
+    /// signature, the official Developer ID team, notarized, a Gatekeeper pass, and the offered version and build.
+    /// Otherwise the reason.
+    static func checkApp(_ app: URL, version: String, build: UInt32?, bundleID: String? = Bundle.main.bundleIdentifier) -> String? {
         guard let bundleID, Bundle(url: app)?.bundleIdentifier == bundleID else { return "the app has a different bundle identifier" }
         guard run("/usr/bin/codesign", ["--verify", "--deep", "--strict", app.path]).status == 0 else {
             return "the app's code signature is not valid"
@@ -319,10 +320,26 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
             return "the app is not signed with the official Developer ID (\(expectedTeam))"
         }
         guard app.lastPathComponent == appName else { return "the app has an unexpected name" }
-        guard run("/usr/sbin/spctl", ["--assess", "--type", "execute", app.path]).status == 0 else {
-            return "Gatekeeper does not accept the app (not notarized)"
+        // Also asked of codesign: spctl accepts anything while Gatekeeper is turned off.
+        guard run("/usr/bin/codesign", ["--verify", "--strict", "-R", "=notarized", app.path]).status == 0 else {
+            return "the app is not notarized by Apple"
         }
+        guard run("/usr/sbin/spctl", ["--assess", "--type", "execute", app.path]).status == 0 else {
+            return "Gatekeeper does not accept the app"
+        }
+        guard isOffered(app, version: version, build: build) else { return "the app is not the offered version and build" }
         return nil
+    }
+
+    /// True when the app's own version and build are the offered ones, so an older official app cannot pass as an
+    /// update. Info.plist holds the version without its pre-release part (0.8.0 for 0.8.0-rc.2); the build tells
+    /// those apart, so an offer without a build is refused. Call after the signature check, which covers Info.plist.
+    static func isOffered(_ app: URL, version: String, build: UInt32?) -> Bool {
+        guard let build,
+              let data = try? Data(contentsOf: app.appendingPathComponent("Contents/Info.plist")),
+              let info = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any] else { return false }
+        let core = version.split(separator: "-", maxSplits: 1).first.map(String.init)
+        return info["CFBundleShortVersionString"] as? String == core && info["CFBundleVersion"] as? String == String(build)
     }
 
     /// Apple-issued Developer ID Application certificate of the official team, and this app's identifier.
@@ -450,7 +467,7 @@ final class HTTPSOnlyRedirects: NSObject, URLSessionTaskDelegate {
 struct UpdateResponse {
     struct Asset { let name: String; let url: String; let sha256: String; let size: UInt64 }
     struct Offer {
-        let version: String; let channel: String; let tag: String; let releasePage: URL?
+        let version: String; let build: UInt32?; let channel: String; let tag: String; let releasePage: URL?
         let asset: Asset?
         /// The offer object as JSON, handed back to the core for the package check.
         let raw: String?
@@ -475,7 +492,7 @@ struct UpdateResponse {
                 return Asset(name: n, url: u, sha256: h, size: z)
             }
             let raw = (try? JSONSerialization.data(withJSONObject: x)).flatMap { String(data: $0, encoding: .utf8) }
-            offer = Offer(version: v, channel: x["channel"] as? String ?? "", tag: t,
+            offer = Offer(version: v, build: (x["build"] as? NSNumber).flatMap { UInt32(exactly: $0) }, channel: x["channel"] as? String ?? "", tag: t,
                           releasePage: (x["release_page"] as? String).flatMap(URL.init(string:)), asset: asset, raw: raw)
         } else {
             offer = nil
