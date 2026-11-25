@@ -22,6 +22,7 @@ pub mod render;
 pub mod saver;
 pub mod saver_config;
 pub mod saver_ffi;
+pub mod timezones;
 pub mod update;
 pub mod update_check;
 pub mod update_feed;

@@ -107,13 +107,13 @@ struct OsintSettingsView: View {
                 }
                 HStack {
                     Button("Check for updates now") { updates.checkNow() }.disabled(updates.checking)
-                    if let offer = updates.response?.offer, let page = offer.releasePage {
+                    if let offer = updates.activeOffer, let page = offer.releasePage {
                         Button("Open the release page for \(offer.version)…") { NSWorkspace.shared.open(page) }
                     }
                 }
                 if updates.readyApp != nil {
                     Button("Show the checked app in Finder…") { updates.revealReady() }
-                } else if updates.response?.newer == true, let offer = updates.response?.offer, offer.asset != nil {
+                } else if let offer = updates.downloadableOffer {
                     if case .running = updates.download {
                         Button("Downloading \(offer.version)…") {}.disabled(true)
                     } else {

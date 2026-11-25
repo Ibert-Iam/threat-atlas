@@ -24,6 +24,9 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
         didSet {
             guard channel != oldValue else { return }
             UserDefaults.standard.set(channel, forKey: Self.channelKey)
+            // The old result belongs to the old channel; it must not stay on offer (also if this check fails).
+            response = nil
+            dropDownload()
             checkNow()
         }
     }
@@ -36,6 +39,13 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
     private(set) var started = false
     /// Only the newest check may publish its result (a channel change while one runs starts a new one).
     private var generation = 0
+    /// The running check; a newer one cancels it.
+    private var running: Task<Void, Never>?
+    private var downloading: Task<Void, Never>?
+    /// Only the newest download may publish its result.
+    private var downloadGeneration = 0
+    private let feedSource: URL
+    private let signatureSource: URL
     private let stateURL: URL
     private let updatesURL: URL
     /// Release downloads: GitHub redirects to its file host, so HTTPS redirects are allowed here (never to
@@ -49,15 +59,20 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
     }()
     private let jitter: TimeInterval
     private var timer: Timer?
-    private lazy var session: URLSession = {
+    private(set) lazy var session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.httpCookieStorage = nil
         config.urlCache = nil
         config.timeoutIntervalForRequest = 30
+        // Whole transfer, so a slow trickle cannot keep a check open.
+        config.timeoutIntervalForResource = 60
         return URLSession(configuration: config, delegate: self, delegateQueue: nil)
     }()
 
-    init(directory: URL? = nil) {
+    /// The parameters are for the offline tests; the app always uses the defaults.
+    init(directory: URL? = nil, feed: URL = UpdateController.feedURL, signature: URL = UpdateController.signatureURL) {
+        feedSource = feed
+        signatureSource = signature
         let base = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("ThreatAtlasPrivateRadar", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
@@ -105,9 +120,11 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
         generation += 1
         let mine = generation
         checking = true
-        Task {
-            let feed = await fetch(Self.feedURL, cap: Self.maxFeedBytes)
-            let signature = await fetch(Self.signatureURL, cap: Self.maxSignatureBytes)
+        running?.cancel()
+        let (session, feedSource, signatureSource) = (session, feedSource, signatureSource)
+        running = Task {
+            let feed = await Self.fetch(feedSource, cap: Self.maxFeedBytes, session: session)
+            let signature = await Self.fetch(signatureSource, cap: Self.maxSignatureBytes, session: session)
             await MainActor.run {
                 guard mine == self.generation else { return }
                 self.finish(feed: feed, signature: signature)
@@ -115,11 +132,28 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
         }
     }
 
-    private func fetch(_ url: URL, cap: Int) async -> Data? {
+    /// The body of a 200 reply of at most `cap` bytes, else nil. The cap counts decoded bytes as they arrive and
+    /// stops the transfer at the first byte over it, whatever Content-Length says.
+    static func fetch(_ url: URL, cap: Int, session: URLSession) async -> Data? {
         var request = URLRequest(url: url)
         request.cachePolicy = .reloadIgnoringLocalCacheData
-        guard let (data, reply) = try? await session.data(for: request),
-              (reply as? HTTPURLResponse)?.statusCode == 200, data.count <= cap else { return nil }
+        guard let (stream, reply) = try? await session.bytes(for: request) else { return nil }
+        guard (reply as? HTTPURLResponse)?.statusCode == 200, reply.expectedContentLength <= Int64(cap) else {
+            stream.task.cancel()
+            return nil
+        }
+        var data = Data()
+        do {
+            for try await byte in stream {
+                guard data.count < cap else {
+                    stream.task.cancel()
+                    return nil
+                }
+                data.append(byte)
+            }
+        } catch {
+            return nil
+        }
         return data
     }
 
@@ -133,7 +167,7 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
         ]
         let reply = Self.run(feed: feed ?? Data(), signature: signature ?? Data(), request: request)
         if let reply {
-            response = reply
+            apply(reply)
             if let newState = reply.state {
                 state = newState
                 if let data = try? JSONSerialization.data(withJSONObject: newState, options: [.prettyPrinted, .sortedKeys]) {
@@ -142,6 +176,18 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
             }
         }
         checking = false
+    }
+
+    /// Publishes a result for the current channel.
+    func apply(_ reply: UpdateResponse) { response = reply }
+
+    /// The offer the user may act on: only from a finished check of the selected channel, never while one runs.
+    var activeOffer: UpdateResponse.Offer? { checking ? nil : response?.offer }
+
+    /// The active offer when it is newer and has a package to download.
+    var downloadableOffer: UpdateResponse.Offer? {
+        guard response?.newer == true, let offer = activeOffer, offer.asset != nil else { return nil }
+        return offer
     }
 
     /// One pure call into the core; asks for the size first, then fills a buffer of that size.
@@ -163,7 +209,7 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
     /// The checked app, only while the latest result still offers exactly that version (same tag and SHA-256);
     /// a withdrawal, channel switch or newer release makes an earlier download stale.
     var readyApp: URL? {
-        guard case .ready(let ready) = download, let offer = response?.offer, response?.newer == true,
+        guard case .ready(let ready) = download, let offer = downloadableOffer,
               offer.version == ready.version, offer.tag == ready.tag, offer.asset?.sha256 == ready.sha256 else { return nil }
         return ready.app
     }
@@ -171,15 +217,27 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
     /// Downloads the offered package, checks it in the core against the signed feed, unpacks it and checks the
     /// app's Developer ID team and Gatekeeper assessment. Nothing is installed: the app is shown in Finder.
     func downloadOffer() {
-        guard started, response?.newer == true, let offer = response?.offer, let raw = offer.raw,
-              let asset = offer.asset else { return }
+        guard started, let offer = downloadableOffer, let raw = offer.raw, let asset = offer.asset else { return }
         if case .running = download { return }
         download = .running(offer.version)
+        downloadGeneration += 1
+        let mine = downloadGeneration
         let (session, folder) = (downloadSession, updatesURL)
-        Task {
+        downloading = Task {
             let result = await Self.fetchAndCheck(offer: offer, raw: raw, asset: asset, session: session, updates: folder)
-            await MainActor.run { self.download = result }
+            await MainActor.run {
+                guard mine == self.downloadGeneration else { return }
+                self.download = result
+            }
         }
+    }
+
+    /// Stops a running download and forgets its result; it belongs to the old channel.
+    private func dropDownload() {
+        downloadGeneration += 1
+        downloading?.cancel()
+        downloading = nil
+        download = .idle
     }
 
     func revealReady() {
@@ -189,10 +247,12 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
     static func fetchAndCheck(offer: UpdateResponse.Offer, raw: String, asset: UpdateResponse.Asset,
                               session: URLSession, updates: URL,
                               bundleID: String? = Bundle.main.bundleIdentifier) async -> DownloadState {
+        if Task.isCancelled { return .failed("the download failed or was interrupted") }
         let fm = FileManager.default
         try? fm.removeItem(at: updates)
         let folder = updates.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        func fail(_ why: String) -> DownloadState { try? fm.removeItem(at: updates); return .failed(why) }
+        // Its own folder only: a newer download may already use the parent.
+        func fail(_ why: String) -> DownloadState { try? fm.removeItem(at: folder); return .failed(why) }
         guard let url = URL(string: asset.url), url.scheme == "https" else { return fail("the download address is not allowed") }
         do { try fm.createDirectory(at: folder, withIntermediateDirectories: true) } catch { return fail("cannot create the download folder") }
         let zip = folder.appendingPathComponent(asset.name)
@@ -237,6 +297,7 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
         let apps = (try? fm.contentsOfDirectory(at: unpacked, includingPropertiesForKeys: nil))?.filter { $0.pathExtension == "app" } ?? []
         guard apps.count == 1, let app = apps.first else { return fail("the package does not contain exactly one app") }
         if let why = checkApp(app, bundleID: bundleID) { return fail(why) }
+        if Task.isCancelled { return fail("the download failed or was interrupted") }
         return .ready(ReadyDownload(version: offer.version, tag: offer.tag, sha256: asset.sha256, app: app))
     }
 
