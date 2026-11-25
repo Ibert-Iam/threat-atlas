@@ -186,13 +186,22 @@ import Foundation
         let id = "dev.threatatlas.private.radar"
         let official = URL(fileURLWithPath: "/Applications/AtlasSOC.app")
         if FileManager.default.fileExists(atPath: official.path) {
-            check(UpdateController.checkApp(official, bundleID: id) == nil, "the installed, notarized official app passes")
+            let info = NSDictionary(contentsOf: official.appendingPathComponent("Contents/Info.plist"))!
+            let version = info["CFBundleShortVersionString"] as! String, build = UInt32(info["CFBundleVersion"] as! String)!
+            check(UpdateController.checkApp(official, version: version, build: build, bundleID: id) == nil,
+                  "the installed, notarized official app passes as its own version")
+            check(UpdateController.checkApp(official, version: version + "-rc.9", build: build, bundleID: id) == nil,
+                  "a pre-release part does not matter, the build does")
+            check(UpdateController.checkApp(official, version: "99.0.0", build: build, bundleID: id)?.contains("offered version") == true,
+                  "an official app of another version is refused")
+            check(UpdateController.checkApp(official, version: version, build: build + 1, bundleID: id)?.contains("offered version") == true,
+                  "an official app of another build is refused")
         }
         let calculator = URL(fileURLWithPath: "/System/Applications/Calculator.app")
-        check(UpdateController.checkApp(calculator, bundleID: id)?.contains("bundle identifier") == true,
+        check(UpdateController.checkApp(calculator, version: "0.8.0", build: 15, bundleID: id)?.contains("bundle identifier") == true,
               "another app is refused on its bundle identifier")
         if let adhoc = ProcessInfo.processInfo.environment["ADHOC_APP"] {
-            check(UpdateController.checkApp(URL(fileURLWithPath: adhoc), bundleID: id)?.contains("Developer ID") == true,
+            check(UpdateController.checkApp(URL(fileURLWithPath: adhoc), version: "0.8.0", build: 15, bundleID: id)?.contains("Developer ID") == true,
                   "an ad-hoc signed build is refused (not the official team)")
         }
         let spoofDir = FileManager.default.temporaryDirectory.appendingPathComponent("update-tests-" + UUID().uuidString)
@@ -201,14 +210,31 @@ import Foundation
         if let adhoc = ProcessInfo.processInfo.environment["ADHOC_APP"] {
             let spoof = spoofDir.appendingPathComponent("x\nTeamIdentifier=\(UpdateController.expectedTeam)\nz.app")
             try FileManager.default.copyItem(at: URL(fileURLWithPath: adhoc), to: spoof)
-            check(UpdateController.checkApp(spoof, bundleID: id)?.contains("Developer ID") == true,
+            check(UpdateController.checkApp(spoof, version: "0.8.0", build: 15, bundleID: id)?.contains("Developer ID") == true,
                   "a folder name that imitates the team line is refused")
         }
         if FileManager.default.fileExists(atPath: official.path) {
             let renamed = spoofDir.appendingPathComponent("Other.app")
             try FileManager.default.copyItem(at: official, to: renamed)
-            check(UpdateController.checkApp(renamed, bundleID: id)?.contains("name") == true, "the official app under another name is refused")
+            check(UpdateController.checkApp(renamed, version: "0.8.0", build: 15, bundleID: id)?.contains("name") == true, "the official app under another name is refused")
         }
+
+        // Version and build, on a made-up app.
+        let made = spoofDir.appendingPathComponent("Made.app")
+        try FileManager.default.createDirectory(at: made.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        let plist = try PropertyListSerialization.data(fromPropertyList: ["CFBundleShortVersionString": "0.8.0", "CFBundleVersion": "16"],
+                                                       format: .xml, options: 0)
+        try plist.write(to: made.appendingPathComponent("Contents/Info.plist"))
+        func offered(_ version: String, _ build: UInt32?) -> Bool { UpdateController.isOffered(made, version: version, build: build) }
+        check(offered("0.8.0", 16) && offered("0.8.0-rc.2", 16), "the offered version and build match")
+        check(!offered("0.8.1", 16) && !offered("0.8", 16) && !offered("", 16) && !offered("0.8.0", 15), "any other is refused")
+        check(!offered("0.8.0", nil), "an offer without a build is refused")
+        check(!UpdateController.isOffered(spoofDir, version: "0.8.0", build: 16), "an app without Info.plist is refused")
+        func parsed(_ build: String) -> UpdateResponse? {
+            UpdateResponse(json: Data(#"{"result":"available","newer":true,"offer":{"version":"1.0.0","tag":"t","build":\#(build)}}"#.utf8))
+        }
+        check(parsed("16")?.offer?.build == 16 && parsed("null")?.offer != nil && parsed("null")?.offer?.build == nil
+              && parsed("-1")?.offer?.build == nil, "the build is read from the core's answer")
 
         // Cleanup: folders in use by any instance stay. Locks taken here stand for other processes.
         let support = spoofDir.appendingPathComponent("support")
