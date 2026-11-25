@@ -3,7 +3,7 @@
 //! fading arcs; country tints that change over minutes, not seconds.
 //! Severity is red/yellow/green only; information uses subtle slate blue and grey.
 use super::{xy, Renderer, MUTED};
-use crate::feed::Snapshot;
+use crate::feed::{Received, Snapshot};
 use crate::radar::{self, Aggregate, Freshness};
 use std::collections::VecDeque;
 use tiny_skia::*;
@@ -94,6 +94,9 @@ pub const REALTIME_ARCS_PER_SECOND: f64 = 40.;
 pub const REALTIME_MAX_ARCS: usize = 160;
 pub const REALTIME_ARC_LIFE_MS: u64 = 3000;
 const REALTIME_FADE_IN_MS: u64 = 250;
+/// Visual playback only. Receipt timestamps, counters and source freshness are never delayed.
+const REALTIME_PLAYBACK_MS: u64 = 1000;
+const REALTIME_PENDING_ARCS: usize = 40;
 const REALTIME_LIST_REFRESH_MS: u64 = 500;
 /// Country tints and outlines are redrawn at most once a second (or when options change).
 const OVERLAY_REFRESH_MS: u64 = 1000;
@@ -247,6 +250,10 @@ struct Arc {
     /// Realtime arcs carry a head dot that travels source to destination once (no looping).
     travelling: bool,
 }
+struct PendingArc {
+    received: Received,
+    due: u64,
+}
 struct Line {
     route: String,
     class: usize,
@@ -257,6 +264,8 @@ pub struct SocView {
     pub options: Options,
     arcs: VecDeque<Arc>,
     last_sequence: u64,
+    pending_arcs: VecDeque<PendingArc>,
+    arc_options: Option<(Motion, [bool; 3], Option<usize>)>,
     tokens: f64,
     /// xorshift state for realtime sampling (display only, not security-relevant).
     rng: u64,
@@ -449,6 +458,8 @@ impl SocView {
             options: Options::default(),
             arcs: VecDeque::new(),
             last_sequence: 0,
+            pending_arcs: VecDeque::new(),
+            arc_options: None,
             tokens: 1.,
             rng: 0x9e37_79b9_7f4a_7c15,
             last_ms: 0,
@@ -507,8 +518,19 @@ impl SocView {
     /// first. Realtime: many, sampled uniformly so the colour mix matches what actually arrived.
     fn update_arcs(&mut self, s: &Snapshot) {
         let now = s.now_ms;
-        let elapsed = now.saturating_sub(self.last_ms).min(5000) as f64;
+        let elapsed_ms = now.saturating_sub(self.last_ms).min(5000);
+        let elapsed = elapsed_ms as f64;
         self.last_ms = now;
+        let options = (
+            self.options.motion,
+            self.options.severities,
+            self.options.focus,
+        );
+        if self.arc_options != Some(options) {
+            self.pending_arcs.clear();
+            self.arcs.clear();
+            self.arc_options = Some(options);
+        }
         let (rate, cap, life, fade_in) = match self.options.motion {
             Motion::Realtime => (
                 REALTIME_ARCS_PER_SECOND,
@@ -537,44 +559,80 @@ impl SocView {
             return;
         }
         if self.options.motion == Motion::Realtime {
-            let take = self.tokens.floor() as usize;
-            if take > 0 && fresh.len() > take {
-                // Reservoir sampling: every arrival has the same chance, whatever the batch pattern.
-                let mut picked: Vec<_> = fresh[..take].to_vec();
-                for (i, record) in fresh.iter().enumerate().skip(take) {
-                    let j = (self.next_random() % (i as u64 + 1)) as usize;
-                    if j < take {
-                        picked[j] = record;
+            // A few frames of credit permit fractional pacing at low frame rates, but idle
+            // time cannot bankroll another visible burst when the feed resumes.
+            self.tokens = self
+                .tokens
+                .min((elapsed_ms.min(100) as f64 / 1000. * rate).ceil() + 1.);
+            if matches!(s.status.as_str(), "OFFLINE" | "STALE") {
+                self.pending_arcs.clear();
+            } else {
+                fresh.retain(|r| now.saturating_sub(r.received_ms) <= REALTIME_PLAYBACK_MS);
+                // Select a bounded, unbiased subset of actual arrivals, independently of the
+                // rendering budget. A drained budget must not discard the next second's data.
+                if fresh.len() > REALTIME_PENDING_ARCS {
+                    let mut picked = fresh[..REALTIME_PENDING_ARCS].to_vec();
+                    for (i, record) in fresh.iter().enumerate().skip(REALTIME_PENDING_ARCS) {
+                        let j = (self.next_random() % (i as u64 + 1)) as usize;
+                        if j < REALTIME_PENDING_ARCS {
+                            picked[j] = record;
+                        }
                     }
+                    fresh = picked;
                 }
-                fresh = picked;
+                let count = fresh.len() as u64;
+                for (i, r) in fresh.into_iter().enumerate() {
+                    self.pending_arcs.push_back(PendingArc {
+                        received: r.clone(),
+                        due: now + i as u64 * REALTIME_PLAYBACK_MS / count,
+                    });
+                }
+                self.pending_arcs
+                    .retain(|p| now.saturating_sub(p.received.received_ms) <= REALTIME_PLAYBACK_MS);
+                self.pending_arcs.make_contiguous().sort_by_key(|p| p.due);
+                // Keep near-term work under sustained input; never accumulate a long backlog.
+                self.pending_arcs.truncate(REALTIME_PENDING_ARCS);
+                let frame_budget =
+                    ((elapsed_ms.min(100) as f64 / 1000.) * rate).ceil().max(1.) as usize;
+                let frame_budget = frame_budget.min(self.tokens.floor() as usize);
+                for _ in 0..frame_budget {
+                    if self.pending_arcs.front().is_none_or(|p| p.due > now) {
+                        break;
+                    }
+                    let p = self.pending_arcs.pop_front().unwrap();
+                    self.tokens -= 1.;
+                    self.admit_arc(&p.received, now, life, fade_in);
+                }
             }
         } else {
-            fresh.sort_by_key(|r| r.record.class()); // stable: newest first within a class
-        }
-        for r in fresh {
-            if self.tokens < 1. {
-                break;
+            fresh.sort_by_key(|r| r.record.class());
+            for r in fresh {
+                if self.tokens < 1. {
+                    break;
+                }
+                self.tokens -= 1.;
+                self.admit_arc(r, now, life, fade_in);
             }
-            self.tokens -= 1.;
-            self.arcs.push_back(Arc {
-                a: xy(r.record.source.longitude, r.record.source.latitude),
-                b: xy(
-                    r.record.destination.longitude,
-                    r.record.destination.latitude,
-                ),
-                born: now,
-                class: r.record.class(),
-                life,
-                fade_in,
-                travelling: self.options.motion == Motion::Realtime,
-            });
         }
         self.arcs
             .retain(|a| now.saturating_sub(a.born) < a.life && a.class < 3);
         while self.arcs.len() > cap {
             self.arcs.pop_front();
         }
+    }
+    fn admit_arc(&mut self, r: &Received, now: u64, life: u64, fade_in: u64) {
+        self.arcs.push_back(Arc {
+            a: xy(r.record.source.longitude, r.record.source.latitude),
+            b: xy(
+                r.record.destination.longitude,
+                r.record.destination.latitude,
+            ),
+            born: now,
+            class: r.record.class(),
+            life,
+            fade_in,
+            travelling: self.options.motion == Motion::Realtime,
+        });
     }
     /// Draw one frame. `counts` are per-country and overall malicious/suspicious/benign counts
     /// for the last few minutes; `radar` is the latest validated Cloudflare snapshot, if any.
@@ -1009,7 +1067,7 @@ impl SocView {
             r.text(660, y, 11, label, TEXT);
         }
         let arcs_note = if self.options.motion == Motion::Realtime {
-            "ARCS: UP TO 40/S, 3 S"
+            "ARCS: <=40/S, <=1S DELAY"
         } else {
             "ARCS: MAX 2/S, FADE 8 S"
         };
@@ -1140,7 +1198,7 @@ impl Dashboard<'_> {
 
         // 06: map tile hints, focused-country callout, status line under the map.
         let arcs_note = if o.motion == Motion::Realtime {
-            "ARCS UP TO 40/S, 3 S"
+            "ARCS <=40/S, <=1S DELAY"
         } else {
             "ARCS MAX 2/S, FADE 8 S"
         };
@@ -2215,6 +2273,117 @@ mod tests {
                 "channel {k}: map {map}, marker {marker}, seen {seen}"
             );
         }
+    }
+    #[test]
+    fn realtime_batch_keeps_launching_between_arrivals() {
+        let mut view = SocView::new();
+        let mut state = State::default();
+        let start = 2_000_000;
+        // A provider delivers one second of observations at once.
+        for _ in 0..40 {
+            state.ingest(&row("NL", "US", "benign"), start);
+        }
+        let mut launches = Vec::new();
+        for frame in 0..40 {
+            let now = start + frame * 25;
+            view.update_arcs(&state.snapshot(now));
+            launches.push(view.arcs.iter().filter(|a| a.born == now).count());
+        }
+        let late_frames = launches[1..].iter().filter(|&&n| n > 0).count();
+        assert!(
+            late_frames >= 30,
+            "batch then pause: launches per frame {launches:?}"
+        );
+        assert!(
+            launches.iter().all(|&n| n <= 2),
+            "one arrival must not launch the entire batch: {launches:?}"
+        );
+    }
+    #[test]
+    fn realtime_queue_is_bounded_and_preserves_receipts() {
+        let mut view = SocView::new();
+        let mut state = State::default();
+        let start = 2_000_000;
+        for _ in 0..4000 {
+            state.ingest(&row("NL", "US", "benign"), start);
+        }
+        let before = state.snapshot(start);
+        view.update_arcs(&before);
+        assert!(view.pending_arcs.len() <= REALTIME_PENDING_ARCS);
+        for p in &view.pending_arcs {
+            assert_eq!(p.received.received_ms, start);
+        }
+        let after = state.snapshot(start);
+        assert_eq!(before.records, after.records);
+        assert_eq!(before.counts, after.counts);
+        assert_eq!(before.last_record_ms, after.last_record_ms);
+        let mut late = state.snapshot(start + REALTIME_PLAYBACK_MS + 1);
+        view.update_arcs(&late);
+        assert!(view.pending_arcs.is_empty(), "no aged backlog");
+        assert!(view.arcs.iter().all(|a| a.born == start));
+        late.status = "STALE".into();
+        late.now_ms += REALTIME_ARC_LIFE_MS;
+        view.update_arcs(&late);
+        assert!(view.arcs.is_empty());
+    }
+    #[test]
+    fn realtime_continuous_input_respects_rate_budget() {
+        let mut view = SocView::new();
+        let mut state = State::default();
+        let start = 2_000_000;
+        let mut admitted = 0;
+        for frame in 0..300 {
+            let now = start + frame * 16;
+            state.ingest(&row("NL", "US", "benign"), now);
+            view.update_arcs(&state.snapshot(now));
+            admitted += view.arcs.iter().filter(|a| a.born == now).count();
+            assert!(view.pending_arcs.len() <= REALTIME_PENDING_ARCS);
+        }
+        assert!(
+            admitted <= 194,
+            "40/s plus at most two frames credit: {admitted}"
+        );
+        assert!(
+            admitted > 150,
+            "sustained input should remain active: {admitted}"
+        );
+    }
+    #[test]
+    fn realtime_small_batches_are_spread_and_filters_cancel_pending() {
+        let mut view = SocView::new();
+        let mut state = State::default();
+        let start = 2_000_000;
+        for _ in 0..5 {
+            state.ingest(&row("NL", "US", "benign"), start);
+        }
+        for frame in 0..10 {
+            let now = start + frame * 100;
+            view.update_arcs(&state.snapshot(now));
+        }
+        let births: Vec<_> = view.arcs.iter().map(|a| a.born).collect();
+        assert_eq!(
+            births,
+            vec![start, start + 200, start + 400, start + 600, start + 800]
+        );
+        for _ in 0..40 {
+            state.ingest(&row("NL", "US", "benign"), start + 1000);
+        }
+        view.update_arcs(&state.snapshot(start + 1000));
+        assert!(!view.pending_arcs.is_empty());
+        view.options.severities[2] = false;
+        view.update_arcs(&state.snapshot(start + 1025));
+        assert!(view.pending_arcs.is_empty());
+        assert!(view.arcs.is_empty());
+        view.options.severities[2] = true;
+        state.ingest(&row("NL", "US", "benign"), start + 1100);
+        view.update_arcs(&state.snapshot(start + 1100));
+        let mut offline = state.snapshot(start + 1125);
+        offline.status = "OFFLINE".into();
+        view.update_arcs(&offline);
+        assert!(view.pending_arcs.is_empty());
+        view.options.motion = Motion::Still;
+        view.update_arcs(&offline);
+        assert!(view.arcs.is_empty());
     }
     #[test]
     fn realtime_is_the_default() {

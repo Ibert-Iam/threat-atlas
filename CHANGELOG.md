@@ -8,9 +8,11 @@ Scope frozen on 24 November 2026; this entry is completed at the release gate.
 - Download and verify: the installer or app named in the signed feed is downloaded only after a click and checked
   for exact size and SHA-256. On macOS it must also carry the official Developer ID and pass Gatekeeper. The Windows
   installer opens in its normal window, and on macOS the checked app is shown in Finder. Nothing installs silently.
-- Stability: the feed worker stops promptly even when DNS is slow; SOC arcs are paced between data batches.
+- Stability: the feed worker stops promptly even when DNS is slow.
+- Realtime mode: sampled real observation arcs are spread across incoming batches, with at most one second of visual
+  delay; receipt counters and source timestamps remain unchanged.
 - Map: compass and hourly time-zone labels.
-- Fixes: help links in the Windows app point to the public repository.
+- Fixes: help links in the Windows and macOS apps point to the public repository.
 - Hardening: dependency audit in CI.
 - Not in this release: Windows code signing.
 
