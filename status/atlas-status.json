@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-25T19:00:27Z",
+  "generated_at": "2026-11-25T19:11:48Z",
   "project": {
     "name": "Threat Atlas",
     "repository_url": "https://github.com/Ibert-Iam/threat-atlas"
@@ -169,7 +169,7 @@
       "credits_reading": {
         "kind": "usd",
         "value": 49.25,
-        "full": null
+        "full": 50.0
       },
       "source": "status"
     },
@@ -184,7 +184,7 @@
       "credits_reading": {
         "kind": "usd",
         "value": 6.17,
-        "full": null
+        "full": 50.0
       },
       "source": "status"
     }
