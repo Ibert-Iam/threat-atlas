@@ -55,6 +55,10 @@ jobs:
     if: always() && needs.check.result != 'success' && github.repository == 'Ibert-Iam/threat-atlas' && github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    # One alert at a time across scheduled and manual runs, so a second one finds the first one's issue.
+    concurrency:
+      group: feed-alert
+      cancel-in-progress: false
     permissions:
       issues: write
     steps:
