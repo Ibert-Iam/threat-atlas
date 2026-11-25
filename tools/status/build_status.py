@@ -6,8 +6,8 @@ a scheduled workflow with no AI, reads those files plus the public GitHub releas
 public file. Until an agent has a status file, its old handovers/<agent>.json health and credits
 fields are used instead (source "handover").
 
-Only reviewed fields go public: agent id, name, role, last-seen time, state word and credits class.
-Task text, blockers, credit numbers, hosts and tokens stay private.
+Only reviewed fields go public: agent id, name, role, last-seen time, state word, credits class and
+the credit figure (owner decision 25 Nov 2026). Task text, blockers, hosts and tokens stay private.
 
 Environment: HANDOVER_TOKEN (read-only contents on the private repo), GH_TOKEN (write contents on
 this public repo), optionally DRY_RUN=1 to print instead of publishing.
@@ -15,6 +15,7 @@ this public repo), optionally DRY_RUN=1 to print instead of publishing.
 import base64
 import datetime as dt
 import json
+import math
 import os
 import re
 import sys
@@ -81,17 +82,32 @@ def credit_class(credits):
     return declared if declared in CREDITS else LEGACY_CREDITS.get(declared, "unknown")
 
 
+def credit_reading(credits):
+    """The figure behind the class, for the page's gauges; None when there is no usable figure."""
+    if not isinstance(credits, dict):
+        return None
+    weekly = number(credits.get("weekly_percent_remaining"))
+    if weekly is not None:
+        return {"kind": "weekly_percent", "value": round(weekly, 1)} if 0 <= weekly <= 100 else None
+    balance = number(credits.get("balance_usd"))
+    if balance is None and credits.get("currency") == "USD":
+        balance = number(credits.get("remaining"))
+    if balance is None or not math.isfinite(balance):
+        return None
+    return {"kind": "usd", "value": round(balance, 2), "full": None}  # no maximum decided yet
+
+
 def from_status(raw, now):
     seen = past(raw.get("updated_at"), now)
     if seen is None:
         return None
     credits = raw.get("credits") if isinstance(raw.get("credits"), dict) else {}
     checked = past(credits.get("checked_at"), now)
-    if checked and now - checked > CREDITS_MAX_AGE:
-        checked = None
+    fresh = checked is not None and now - checked <= CREDITS_MAX_AGE
     return {"last_seen_at": iso_s(seen), "state": raw.get("state") if raw.get("state") in STATES else "unknown",
-            "credits": credit_class(credits) if checked else "unknown",
-            "credits_checked_at": iso_s(checked) if checked else None, "source": "status"}
+            "credits": credit_class(credits) if fresh else "unknown",
+            "credits_checked_at": iso_s(checked) if checked else None,  # kept when old: the page shows its age
+            "credits_reading": credit_reading(credits) if fresh else None, "source": "status"}
 
 
 def from_handover(raw, now):
@@ -108,7 +124,8 @@ def from_handover(raw, now):
             best = (t, record)
     return {"last_seen_at": iso_s(max(times)), "state": "unknown",
             "credits": credit_class(best[1]) if best else "unknown",
-            "credits_checked_at": iso_s(best[0]) if best else None, "source": "handover"}
+            "credits_checked_at": iso_s(best[0]) if best else None,
+            "credits_reading": credit_reading(best[1]) if best else None, "source": "handover"}
 
 
 def agent_rows(status_files, handover_files, previous, now):
@@ -123,10 +140,10 @@ def agent_rows(status_files, handover_files, previous, now):
         if row is None and isinstance(handover_files.get(ident), dict):
             row = from_handover(handover_files[ident], now)
         if row is None and ident in old:
-            row = {k: old[ident].get(k) for k in ("last_seen_at", "state", "credits", "credits_checked_at", "source")}
+            row = {k: old[ident].get(k) for k in ("last_seen_at", "state", "credits", "credits_checked_at", "credits_reading", "source")}
         if row is None:
             row = {"last_seen_at": None, "state": "unknown", "credits": "unknown", "credits_checked_at": None,
-                   "source": "none"}
+                   "credits_reading": None, "source": "none"}
         rows.append({"id": ident, "name": name, "role": role, **row})
     return rows
 
