@@ -26,6 +26,8 @@ pub mod timezones;
 pub mod update;
 pub mod update_check;
 pub mod update_feed;
+pub mod update_ffi;
+pub mod update_package;
 use feed::{Feed, Snapshot};
 use std::sync::Arc;
 pub const WIDTH: u32 = 1440;
