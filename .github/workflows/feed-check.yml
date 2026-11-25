@@ -14,35 +14,47 @@ on:
       - "crates/core/examples/verify_feed.rs"
 permissions:
   contents: read
+# Separate groups per event and branch: a pull request run must never replace a waiting daily check.
 concurrency:
-  group: feed-check
+  group: feed-check-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   check:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (Node 24)
       - run: python3 -I scripts/test-feed-expiry.py
+      # Step timeouts fail the step; every check below runs even when an earlier one failed.
       - name: Download the published feed
+        id: download
+        timeout-minutes: 3
         run: |
           base=https://raw.githubusercontent.com/Ibert-Iam/threat-atlas/update-feed
           curl -fsS --proto =https --max-filesize 1000000 -o feed.json "$base/feed.json"
           curl -fsS --proto =https --max-filesize 256 -o feed.json.sig "$base/feed.json.sig"
       - name: Verify as the apps do (signature, rules, timestamps)
         id: verify
+        if: ${{ !cancelled() && steps.download.outcome == 'success' }}
+        timeout-minutes: 15
         run: cargo run --locked -q -p threat-atlas-core --example verify_feed -- feed.json feed.json.sig
       - name: Every release link answers
         id: online
+        if: ${{ !cancelled() && steps.download.outcome == 'success' }}
+        timeout-minutes: 10
         run: python3 -I scripts/update_feed.py check-online feed.json
       - name: Signing-key delegation not about to expire
         id: expiry
-        run: python3 -I scripts/feed_expiry.py feed.json --warn-days 21
+        if: ${{ !cancelled() && steps.download.outcome == 'success' }}
+        timeout-minutes: 2
+        run: python3 -I scripts/feed_expiry.py feed.json feed.json.sig --warn-days 21
   alert:
     needs: check
     # Only scheduled/manual runs in the real repository open an alert; pull requests never get write access.
-    if: failure() && github.repository == 'Ibert-Iam/threat-atlas' && github.event_name != 'pull_request'
+    # Anything but success alerts, also a check that was cancelled or ran out of time.
+    if: always() && needs.check.result != 'success' && github.repository == 'Ibert-Iam/threat-atlas' && github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     permissions:
       issues: write
     steps:
@@ -53,7 +65,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           gh label create feed-alert --color B60205 --description "Daily update feed check failed" 2>/dev/null || true
-          body="The daily update feed check failed or warns that the signing-key delegation expires within 21 days. Run: $RUN_URL"
+          body="The daily update feed check failed, did not finish, or warns that the signing-key delegation expires within 21 days. Run: $RUN_URL"
           open=$(gh issue list --label feed-alert --state open --json number --jq '.[0].number')
           if [ -n "$open" ]; then
             gh issue comment "$open" --body "$body"
