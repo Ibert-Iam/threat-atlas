@@ -10,6 +10,11 @@ default-run = "threat-atlas"
 name = "threat-atlas-soc"
 path = "src/soc_main.rs"
 
+[features]
+# Updater tests (WP9) only: lets ATLAS_TEST_FEED_PATH / ATLAS_TEST_ROOT pick a test feed and a throwaway
+# test root. Never enabled by the release build scripts.
+test-feed = []
+
 [dependencies]
 threat-atlas-core = { path = "../core" }
 serde = { version = "1", features = ["derive"] }
