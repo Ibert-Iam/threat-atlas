@@ -12,8 +12,8 @@
 //! 5. Withdrawn installed version → banner with a safe alternative; otherwise newer version or up to date.
 use crate::feed_signature::{verify_feed, SignatureError, TrustRoot};
 use crate::update_feed::{
-    installed_is_withdrawn, parse_feed, safe_alternative, update_for, Channel, FeedError, Kind,
-    Selected, SemVer,
+    installed_is_withdrawn, parse_feed, safe_alternative, update_for, Channel, Feed, FeedError,
+    Kind, Selected, SemVer,
 };
 use jiff::{tz::TimeZone, Timestamp};
 use serde::{Deserialize, Serialize};
@@ -134,6 +134,26 @@ pub fn check(
     outcome
 }
 
+/// The stateless part of a check, shared by the apps and the publisher's verifier: signature by a trusted key,
+/// the feed's security checks, a timezone-aware `generated_at`, and no more than [`MAX_CLOCK_SKEW_SECONDS`] in
+/// the future. Returns the parsed feed and its timestamp. The rollback guard needs the stored state and stays in
+/// [`check`].
+pub fn accept_feed(
+    feed_bytes: &[u8],
+    signature: &[u8],
+    root: &TrustRoot,
+    now: Timestamp,
+) -> Result<(Feed, Timestamp), CheckError> {
+    let today = now.to_zoned_datetime(TimeZone::UTC).date();
+    verify_feed(feed_bytes, signature, root, today).map_err(CheckError::Signature)?;
+    let feed = parse_feed(feed_bytes)?;
+    let generated = generated_at(feed_bytes).ok_or(CheckError::Timestamp)?;
+    if generated.as_second() > now.as_second() + MAX_CLOCK_SKEW_SECONDS {
+        return Err(CheckError::FromTheFuture);
+    }
+    Ok((feed, generated))
+}
+
 fn evaluate(
     feed_bytes: &[u8],
     signature: &[u8],
@@ -145,21 +165,10 @@ fn evaluate(
     let Some(root) = root else {
         return Outcome::Unavailable;
     };
-    let today = now.to_zoned_datetime(TimeZone::UTC).date();
-    if let Err(error) = verify_feed(feed_bytes, signature, root, today) {
-        return Outcome::Failed(CheckError::Signature(error));
-    }
-    let feed = match parse_feed(feed_bytes) {
-        Ok(feed) => feed,
-        Err(error) => return Outcome::Failed(error.into()),
+    let (feed, generated) = match accept_feed(feed_bytes, signature, root, now) {
+        Ok(accepted) => accepted,
+        Err(error) => return Outcome::Failed(error),
     };
-    let generated = match generated_at(feed_bytes) {
-        Some(stamp) => stamp,
-        None => return Outcome::Failed(CheckError::Timestamp),
-    };
-    if generated.as_second() > now.as_second() + MAX_CLOCK_SKEW_SECONDS {
-        return Outcome::Failed(CheckError::FromTheFuture);
-    }
     let newest = state
         .newest_feed
         .as_deref()
@@ -490,6 +499,33 @@ mod tests {
                 &mut state
             ),
             Outcome::Failed(CheckError::Signature(SignatureError::UnknownKey))
+        );
+    }
+
+    #[test]
+    fn accept_feed_is_the_shared_stateless_gate() {
+        // MAC review of #143: the publisher must reject exactly what the apps reject.
+        let keys = Keys::new();
+        let root = keys.root();
+        let (feed, sig) = keys.feed("2026-11-23T06:00:00Z");
+        let (_, stamp) = accept_feed(&feed, &sig, &root, now()).unwrap();
+        assert_eq!(stamp.to_string(), "2026-11-23T06:00:00Z");
+        // A timestamp without a timezone (Python's fromisoformat accepts it) is refused.
+        let (naive, naive_sig) = keys.feed("2026-11-23T06:00:00");
+        assert_eq!(
+            accept_feed(&naive, &naive_sig, &root, now()).unwrap_err(),
+            CheckError::Timestamp
+        );
+        // Two days ahead is refused, even though the signature and the feed are fine.
+        let (future, future_sig) = keys.feed("2026-11-25T12:00:00Z");
+        assert_eq!(
+            accept_feed(&future, &future_sig, &root, now()).unwrap_err(),
+            CheckError::FromTheFuture
+        );
+        // Signature problems come first.
+        assert_eq!(
+            accept_feed(&feed, b"", &root, now()).unwrap_err(),
+            CheckError::Signature(SignatureError::Malformed)
         );
     }
 

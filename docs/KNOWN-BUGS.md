@@ -15,7 +15,7 @@ Historical version-specific observations below are retained; no unverified issue
 - Desktop's beta.2 F11 fullscreen report has not been re-verified on stable 0.7.0. Do not infer resolution from the existence of an F11 command.
 - Intel Mac hardware remains untested; Rosetta results are not physical Intel acceptance.
 - Linux Desktop is a separate preview, built from newer source than the stable Desktop tag. No Radar, saved settings, updater, fullscreen toggle or native Wayland. CI/Xvfb offline smoke does not establish physical Linux, live feed, manual pointer/hover, GPU, HiDPI or long-run acceptance.
-- Immediate feed shutdown can still be delayed by DNS resolution. Full idle/lock, extended soak and signed update/rollback acceptance are not established for these exact packages.
+- Feed DNS resolution is bounded to 5 s and the worker is stop-aware; a blocked resolver thread may finish in the background but the worker stops within 100 ms while DNS is pending. Full idle/lock, extended soak and signed update/rollback acceptance are not established for these exact packages.
 
 ## Historical distribution review — 31 October 2026
 
@@ -48,7 +48,7 @@ Release candidate. These are the known limits of this build, not a claim that no
 
 | Item | Effect | Workaround / status |
 |---|---|---|
-| OS DNS lookup can delay feed-worker shutdown | Stopping a session does not guarantee immediate worker termination or zero background traffic. Other network operations have explicit timeouts. | No guaranteed immediate-stop workaround. See [quality review](QUALITY.md#still-requiring-acceptance-testing). |
+| OS DNS lookup can delay feed-worker shutdown | Stop-aware resolver wait is capped at 100 ms; one blocking OS lookup may finish in a detached thread, and a TCP connect already in progress can take up to 5 s. | Bounded resolver timeout and regression test; state the remaining 5 s connect bound. See [quality review](QUALITY.md#still-requiring-acceptance-testing). |
 | Old macOS saver can remain selected after upgrading | A legacy 0.2 bundle can show a blank preview while the new saver is installed. This does not establish a defect in the new bundle. | Back up duplicate legacy bundles, select **Threat Atlas SOC**, then reopen System Settings; see [installation guidance](../README.md#install). |
 
 ## Distribution limitations

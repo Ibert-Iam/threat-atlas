@@ -1,14 +1,16 @@
-//! Settings → Updates on Windows (WP3). A background thread checks the signed update feed once a day at a
-//! per-installation time (and on "Check now"), through `update_check::check` only: no unsigned fallback.
-//! The small state file sits next to the settings. The app never installs anything by itself; an offered
-//! version opens its release page, and the existing update script runs only after the user confirms.
+//! Settings → Updates on Windows (WP3, plus download and verify). A background thread checks the signed update feed once a day
+//! at a per-installation time (and on "Check now"), through `update_check::check` only: no unsigned
+//! fallback. The small state file sits next to the settings. Nothing is installed by the app: after one
+//! click the offered installer is downloaded from the release URL the signed feed names and checked against
+//! the feed's size and SHA-256 (`update_package`); after a second click it is checked again and the normal,
+//! interactive installer window opens.
 use crate::soc_config::{self, BUILD, VERSION};
-use crate::soc_radar::https_get;
+use crate::soc_radar::{https_get, https_get_public};
 use crate::soc_updates::{self, UpdateChannel};
 use std::{
-    env, fs,
+    fs,
+    io::Write,
     path::{Path, PathBuf},
-    process::{self, Command},
     sync::{
         mpsc::{self, Receiver, RecvTimeoutError, Sender},
         Arc, Mutex,
@@ -18,10 +20,10 @@ use std::{
 };
 use threat_atlas_core::{
     update_check::{CheckState, Outcome},
-    update_feed::{Channel, Selected},
+    update_feed::Selected,
+    update_package,
 };
 
-const SCRIPT: &str = include_str!("../../../scripts/update-atlassoc.ps1");
 const STATE_FILE: &str = "update-check.json";
 /// How often the thread looks whether the daily check is due.
 const WAKE: Duration = Duration::from_secs(10 * 60);
@@ -34,17 +36,37 @@ pub struct UpdateView {
     pub offer: Option<Selected>,
     /// True only for a newer version in the user's channel (not for a withdrawn alternative).
     pub newer: bool,
+    pub download: Download,
+}
+
+/// True while a downloaded file is still what the latest check offers as newer: same version, tag and
+/// SHA-256. Anything else (a withdrawal, a channel switch, a newer release) makes the file stale.
+fn still_offered(outcome: Option<&Outcome>, ready: &Selected) -> bool {
+    matches!(outcome, Some(Outcome::Available(found))
+        if found.version == ready.version && found.tag == ready.tag && found.asset.sha256 == ready.asset.sha256)
+}
+
+/// The download step. `Ready` holds the offer the file was checked against and the private path.
+#[derive(Clone, Default)]
+pub enum Download {
+    #[default]
+    Idle,
+    Running(String),
+    Ready(Selected, PathBuf),
+    Failed(String),
 }
 
 struct Shared {
     outcome: Option<Outcome>,
     state: CheckState,
     checking: bool,
+    download: Download,
 }
 
 enum Request {
     CheckNow,
     Channel(UpdateChannel),
+    Download(Selected),
 }
 
 /// Created only after licence consent, and never by the offline smoke test.
@@ -69,10 +91,12 @@ impl Updater {
             outcome: None,
             state,
             checking: false,
+            download: Download::Idle,
         }));
         let (tx, rx) = mpsc::channel();
         let worker = shared.clone();
-        thread::spawn(move || run(worker, rx, path, channel, jitter));
+        let updates = state_dir.join("updates");
+        thread::spawn(move || run(worker, rx, path, updates, channel, jitter));
         Self { shared, tx }
     }
 
@@ -94,12 +118,24 @@ impl Updater {
         let _ = self.tx.send(Request::Channel(channel));
     }
 
+    /// Starts the download of `offer` in the background; the menu shows its progress and result.
+    pub fn download(&self, offer: Selected) {
+        if let Ok(mut shared) = self.shared.lock() {
+            if matches!(shared.download, Download::Running(_)) {
+                return;
+            }
+            shared.download = Download::Running(offer.version.clone());
+        }
+        let _ = self.tx.send(Request::Download(offer));
+    }
+
     pub fn view(&self) -> UpdateView {
         let Ok(shared) = self.shared.lock() else {
             return UpdateView {
                 lines: vec!["Update status unavailable".into()],
                 offer: None,
                 newer: false,
+                download: Download::Idle,
             };
         };
         let (offer, newer) = match &shared.outcome {
@@ -107,14 +143,31 @@ impl Updater {
             Some(Outcome::Withdrawn { alternative }) => (alternative.clone(), false),
             _ => (None, false),
         };
+        let mut lines =
+            soc_updates::status_lines(shared.outcome.as_ref(), &shared.state, shared.checking);
+        // A file that no longer matches the offer is never shown as installable (the worker deletes it).
+        let download = match &shared.download {
+            Download::Ready(ready, _)
+                if shared.checking || !still_offered(shared.outcome.as_ref(), ready) =>
+            {
+                Download::Idle
+            }
+            other => other.clone(),
+        };
+        match &download {
+            Download::Idle => {}
+            Download::Running(version) => lines.push(format!("Downloading {version}...")),
+            Download::Ready(ready, _) => lines.push(format!(
+                "{} downloaded and checked (SHA-256 matches the signed update list)",
+                ready.version
+            )),
+            Download::Failed(why) => lines.push(format!("Download stopped: {why}")),
+        }
         UpdateView {
-            lines: soc_updates::status_lines(
-                shared.outcome.as_ref(),
-                &shared.state,
-                shared.checking,
-            ),
+            lines,
             offer,
             newer,
+            download,
         }
     }
 }
@@ -123,9 +176,12 @@ fn run(
     shared: Arc<Mutex<Shared>>,
     rx: Receiver<Request>,
     path: PathBuf,
+    updates: PathBuf,
     mut channel: UpdateChannel,
     jitter: i64,
 ) {
+    // Installers from an earlier session are no longer needed (a file still in use stays; that is fine).
+    let _ = fs::remove_dir_all(&updates);
     let mut forced = false;
     loop {
         let now = jiff::Timestamp::now();
@@ -133,6 +189,7 @@ fn run(
         if forced || soc_updates::due(&state, now.as_second(), jitter) {
             forced = false;
             check_once(&shared, &path, channel, now, state);
+            drop_stale_download(&shared, &updates);
         }
         match rx.recv_timeout(WAKE) {
             Ok(Request::CheckNow) => forced = true,
@@ -140,8 +197,34 @@ fn run(
                 channel = next;
                 forced = true;
             }
+            Ok(Request::Download(offer)) => {
+                // Its own thread, so checks and "Check now" are not held up by a slow download.
+                let (shared, updates) = (shared.clone(), updates.clone());
+                thread::spawn(move || {
+                    let result = match fetch_package(&offer, &updates) {
+                        Ok(file) => Download::Ready(offer, file),
+                        Err(why) => Download::Failed(why),
+                    };
+                    if let Ok(mut s) = shared.lock() {
+                        s.download = result;
+                    }
+                });
+            }
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => return,
+        }
+    }
+}
+
+/// After a check: a downloaded file that the new result no longer offers is deleted and forgotten.
+fn drop_stale_download(shared: &Arc<Mutex<Shared>>, updates: &Path) {
+    let Ok(mut s) = shared.lock() else {
+        return;
+    };
+    if let Download::Ready(ready, _) = &s.download {
+        if !still_offered(s.outcome.as_ref(), ready) {
+            s.download = Download::Idle;
+            let _ = fs::remove_dir_all(updates);
         }
     }
 }
@@ -171,28 +254,110 @@ fn check_once(
     }
 }
 
-/// Starts the update script in a visible PowerShell window. The script waits for this process to end and
-/// verifies the installer's SHA-256 before it starts the normal (interactive) installer.
-/// `channel` is the offered release's own channel: the script resolves Stable, or the newest release
-/// including pre-releases, which is what the feed offered for RC and Beta.
-pub fn launch(channel: Channel) -> Result<(), String> {
-    let root = env::var_os("SystemRoot").ok_or("SystemRoot is unavailable")?;
-    let powershell = PathBuf::from(root).join(r"System32\WindowsPowerShell\v1.0\powershell.exe");
-    let script = env::temp_dir().join(format!("update-atlassoc-{}.ps1", process::id()));
-    fs::write(&script, SCRIPT).map_err(|error| error.to_string())?;
-    Command::new(powershell)
-        .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
-        .arg(&script)
-        .args([
-            "-Channel",
-            match channel {
-                Channel::Stable => "stable",
-                Channel::Rc | Channel::Beta => "beta",
-            },
-        ])
-        .arg("-Silent")
-        .args(["-WaitPid", &process::id().to_string()])
-        .spawn()
-        .map(drop)
-        .map_err(|error| error.to_string())
+/// Downloads the offered installer, checks it against the signed feed and saves it under a fresh,
+/// unguessable folder in `updates`. Nothing is written unless every check passed; earlier downloads are
+/// removed first, so a failed or interrupted attempt leaves no file behind.
+fn fetch_package(offer: &Selected, updates: &Path) -> Result<PathBuf, String> {
+    let (host, path) = update_package::download_target(offer).map_err(|e| e.text())?;
+    let _ = fs::remove_dir_all(updates);
+    let max = usize::try_from(offer.asset.size).map_err(|_| "the file is too large".to_string())?;
+    let reply =
+        https_get_public(host, &path, "", max).ok_or("the download failed or was interrupted")?;
+    if reply.status != 200 {
+        return Err(format!("the server answered {}", reply.status));
+    }
+    update_package::verify(offer, &reply.body).map_err(|e| e.text())?;
+    let folder = updates.join(format!("{:016x}", random_u64()));
+    fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+    let file = folder.join(&offer.asset.name);
+    let written = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&file)
+        .and_then(|mut f| f.write_all(&reply.body).and_then(|()| f.sync_all()));
+    if let Err(error) = written {
+        let _ = fs::remove_dir_all(updates);
+        return Err(error.to_string());
+    }
+    Ok(file)
+}
+
+/// Checks the saved installer once more against the offer (a file changed on disk since the download is
+/// refused and deleted) and opens it with the normal shell verb, so Windows shows its own prompts and the
+/// installer its own window. Never passes silent-install switches.
+pub fn install(offer: &Selected, file: &Path) -> Result<(), String> {
+    let bytes = read_at_most(file, offer.asset.size + 1)
+        .ok_or("the downloaded file is missing; download it again")?;
+    if let Err(error) = update_package::verify(offer, &bytes) {
+        if let Some(folder) = file.parent() {
+            let _ = fs::remove_dir_all(folder);
+        }
+        return Err(format!("{}; download it again", error.text()));
+    }
+    open_installer(file)
+}
+
+fn read_at_most(file: &Path, max: u64) -> Option<Vec<u8>> {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    fs::File::open(file)
+        .ok()?
+        .take(max)
+        .read_to_end(&mut bytes)
+        .ok()?;
+    Some(bytes)
+}
+
+fn open_installer(file: &Path) -> Result<(), String> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL};
+    let wide = |text: &std::ffi::OsStr| text.encode_wide().chain([0]).collect::<Vec<u16>>();
+    let verb = wide(std::ffi::OsStr::new("open"));
+    let target = wide(file.as_os_str());
+    let folder = file.parent().map(|p| wide(p.as_os_str()));
+    // Inno Setup will not change the install scope, so open the wizard in the scope of this copy
+    // (no silent switches: the user still sees and confirms every installer page).
+    let scope = wide(std::ffi::OsStr::new(install_scope()));
+    // SAFETY: all strings are NUL-terminated and outlive the call.
+    let result = unsafe {
+        ShellExecuteW(
+            std::ptr::null_mut(),
+            verb.as_ptr(),
+            target.as_ptr(),
+            scope.as_ptr(),
+            folder.as_ref().map_or(std::ptr::null(), |f| f.as_ptr()),
+            SW_SHOWNORMAL,
+        )
+    };
+    if result as isize > 32 {
+        Ok(())
+    } else {
+        Err(format!(
+            "Windows could not start the installer (code {})",
+            result as isize
+        ))
+    }
+}
+
+/// `/ALLUSERS` when this copy runs from Program Files, otherwise `/CURRENTUSER`.
+fn install_scope() -> &'static str {
+    let exe = std::env::current_exe().ok();
+    let machine = std::env::var_os("ProgramFiles").map(PathBuf::from);
+    match (exe, machine) {
+        (Some(exe), Some(machine)) if exe.starts_with(&machine) => "/ALLUSERS",
+        _ => "/CURRENTUSER",
+    }
+}
+
+/// 64 bits from the standard library's per-process random hash keys (seeded by the OS) mixed with the
+/// clock: only to make the download folder name unguessable, not for cryptography.
+fn random_u64() -> u64 {
+    use std::hash::{BuildHasher, Hasher};
+    let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+    h.write_u128(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos()),
+    );
+    h.finish()
 }
