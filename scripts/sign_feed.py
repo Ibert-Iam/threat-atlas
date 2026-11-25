@@ -89,6 +89,7 @@ def main(argv=None):
     out = pathlib.Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)
     stage = pathlib.Path(tempfile.mkdtemp(prefix=".sign-staging-", dir=out))
+    keep_stage = False
     try:
         staged_feed, staged_sig = stage / "feed.json", stage / "feed.json.sig"
         staged_feed.write_text(json.dumps(signed, indent=2, ensure_ascii=False) + "\n")
@@ -106,11 +107,18 @@ def main(argv=None):
         try:
             replace_pair(staged_feed, staged_sig, out, stage)
         except OSError as error:
-            print("REFUSED: could not replace the published pair (last good pair restored): " + str(error),
+            print("REFUSED: could not replace the published pair (the last good pair is in place): " + str(error),
+                  file=sys.stderr)
+            return 1
+        except RestoreFailed as error:
+            keep_stage = True
+            print(f"REFUSED: could not replace the published pair, and could not put the last good pair back: "
+                  f"{error}. Its copy is in {stage} (old-feed.json, old-feed.json.sig); do not publish {out}.",
                   file=sys.stderr)
             return 1
     finally:
-        shutil.rmtree(stage, ignore_errors=True)
+        if not keep_stage:
+            shutil.rmtree(stage, ignore_errors=True)
 
     feed_path, sig_path = out / "feed.json", out / "feed.json.sig"
     digest = hashlib.sha256(feed_path.read_bytes()).hexdigest()
@@ -121,26 +129,36 @@ def main(argv=None):
     return 0
 
 
+class RestoreFailed(Exception):
+    """The old pair could not be put back; its only copy is in the staging folder."""
+
+
 def replace_pair(new_feed, new_sig, out, stage):
-    """Moves the new feed and signature into OUT. The current pair is first moved aside into STAGE (same
-    file system, atomic renames); on any failure the files already moved in are rolled back, so OUT always
-    ends with either the complete new pair or the complete old one."""
-    feed, sig = out / "feed.json", out / "feed.json.sig"
-    backup = {feed: stage / "old-feed.json", sig: stage / "old-feed.json.sig"}
-    saved = []
+    """Moves the new feed and signature into OUT, or leaves OUT as it was. The old pair is copied (not moved)
+    into STAGE first, so a failure there touches nothing. A failure or Ctrl-C while the new files move in puts
+    the old pair back; when that fails too, RestoreFailed is raised and STAGE must be kept. A kill -9 between
+    the two moves is not covered: the old pair is then in the staging folder."""
+    backups = []
+    for target in (out / "feed.json", out / "feed.json.sig"):
+        backup = stage / ("old-" + target.name)
+        backups.append((target, backup if target.exists() else None))
+        if target.exists():
+            shutil.copy2(target, backup)
     try:
-        for target in (feed, sig):
-            if target.exists():
-                os.replace(target, backup[target])
-                saved.append(target)
-        os.replace(new_feed, feed)
-        os.replace(new_sig, sig)
-    except OSError:
-        for target in (feed, sig):
-            if target in saved:
-                os.replace(backup[target], target)
-            elif target.exists() and target not in saved:
-                target.unlink()
+        os.replace(new_feed, out / "feed.json")
+        os.replace(new_sig, out / "feed.json.sig")
+    except BaseException as cause:
+        problems = []
+        for target, backup in backups:
+            try:
+                if backup is not None:
+                    os.replace(backup, target)
+                elif target.exists():
+                    target.unlink()
+            except BaseException as error:  # also a second Ctrl-C: the backup must survive it
+                problems.append(str(error) or type(error).__name__)
+        if problems:
+            raise RestoreFailed("; ".join(problems)) from cause
         raise
 
 
