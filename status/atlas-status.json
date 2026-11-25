@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-25T03:11:10Z",
+  "generated_at": "2026-11-25T04:11:30Z",
   "project": {
     "name": "Threat Atlas",
     "repository_url": "https://github.com/Ibert-Iam/threat-atlas"
@@ -144,7 +144,7 @@
       "id": "mac",
       "name": "MacGyver",
       "role": "Crew (Codex)",
-      "last_seen_at": "2026-11-25T01:06:27Z",
+      "last_seen_at": "2026-11-25T04:11:08Z",
       "state": "idle",
       "credits": "ok",
       "credits_checked_at": "2026-11-24T16:00:06Z",
@@ -164,7 +164,7 @@
       "id": "billy",
       "name": "Billy Badass",
       "role": "Crew (DeepSeek)",
-      "last_seen_at": "2026-11-25T03:00:03Z",
+      "last_seen_at": "2026-11-25T04:00:03Z",
       "state": "working",
       "credits": "ok",
       "credits_checked_at": "2026-11-24T16:05:02Z",
