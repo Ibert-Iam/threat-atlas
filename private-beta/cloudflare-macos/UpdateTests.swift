@@ -195,6 +195,50 @@ import Foundation
             check(UpdateController.checkApp(URL(fileURLWithPath: adhoc), bundleID: id)?.contains("Developer ID") == true,
                   "an ad-hoc signed build is refused (not the official team)")
         }
+        let spoofDir = FileManager.default.temporaryDirectory.appendingPathComponent("update-tests-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: spoofDir) }
+        try FileManager.default.createDirectory(at: spoofDir, withIntermediateDirectories: true)
+        if let adhoc = ProcessInfo.processInfo.environment["ADHOC_APP"] {
+            let spoof = spoofDir.appendingPathComponent("x\nTeamIdentifier=\(UpdateController.expectedTeam)\nz.app")
+            try FileManager.default.copyItem(at: URL(fileURLWithPath: adhoc), to: spoof)
+            check(UpdateController.checkApp(spoof, bundleID: id)?.contains("Developer ID") == true,
+                  "a folder name that imitates the team line is refused")
+        }
+        if FileManager.default.fileExists(atPath: official.path) {
+            let renamed = spoofDir.appendingPathComponent("Other.app")
+            try FileManager.default.copyItem(at: official, to: renamed)
+            check(UpdateController.checkApp(renamed, bundleID: id)?.contains("name") == true, "the official app under another name is refused")
+        }
+
+        // Cleanup: folders in use by any instance stay. Locks taken here stand for other processes.
+        let support = spoofDir.appendingPathComponent("support")
+        let store = support.appendingPathComponent("updates")
+        func folder(_ name: String) throws -> URL {
+            let f = store.appendingPathComponent(name)
+            try FileManager.default.createDirectory(at: f.appendingPathComponent("app/AtlasSOC.app"), withIntermediateDirectories: true)
+            return f
+        }
+        func exists(_ f: URL) -> Bool { FileManager.default.fileExists(atPath: f.path) }
+        let used = try folder("used"), stale = try folder("stale"), fresh = try folder("fresh"), old = try folder("old")
+        var usedLock = FolderLock(used)
+        check(usedLock != nil && FolderLock(used) != nil, "two users can hold one folder")
+        _ = FolderLock(stale)
+        try FileManager.default.setAttributes([.creationDate: Date(timeIntervalSinceNow: -7200)], ofItemAtPath: old.path)
+        _ = UpdateController(directory: support)
+        check(exists(used), "a second instance keeps a download in use")
+        check(!exists(stale), "and removes one nobody uses")
+        check(exists(fresh) && !exists(old), "a folder without a lock is kept only while it is new")
+        usedLock = nil
+        var runner: UpdateController? = UpdateController(directory: support, bundle: used.appendingPathComponent("app/AtlasSOC.app"))
+        check(runner != nil && exists(used), "an app started from its download folder does not delete itself")
+        _ = UpdateController(directory: support)
+        check(exists(used), "nor does another instance while it runs")
+        runner = nil
+        _ = UpdateController(directory: support)
+        check(!exists(used), "after it quits the folder is removed")
+        check(UpdateController.downloadFolder(of: URL(fileURLWithPath: "/Applications/AtlasSOC.app"), in: store) == nil,
+              "an installed app is in no download folder")
+
         let payload = Data("zip bytes".utf8)
         let offer: [String: Any] = ["version": "0.8.0", "channel": "stable", "tag": "atlassoc-v0.8.0", "build": 16,
             "asset": ["platform": "macos-universal", "kind": "portable", "name": "AtlasSOC-macOS-universal-v0.8.0-build16.zip",

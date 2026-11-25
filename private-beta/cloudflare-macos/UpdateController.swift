@@ -18,6 +18,7 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
     static let retryAfterFailure: TimeInterval = 60 * 60
     /// Developer ID team of the official builds (Robert Ibert). A different team is refused (docs/UPDATES.md).
     static let expectedTeam = "7NXP86HMVH"
+    static let appName = "AtlasSOC.app"
 
     /// "build" follows the channel of this build; otherwise "stable", "rc" or "beta".
     @Published var channel: String {
@@ -48,6 +49,8 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
     private let signatureSource: URL
     private let stateURL: URL
     private let updatesURL: URL
+    /// Held while this app itself runs from a download folder, so no instance deletes it.
+    private let ownFolder: FolderLock?
     /// Release downloads: GitHub redirects to its file host, so HTTPS redirects are allowed here (never to
     /// plain HTTP). The bytes are trusted only after the core's SHA-256 check against the signed feed.
     private lazy var downloadSession: URLSession = {
@@ -70,7 +73,8 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
     }()
 
     /// The parameters are for the offline tests; the app always uses the defaults.
-    init(directory: URL? = nil, feed: URL = UpdateController.feedURL, signature: URL = UpdateController.signatureURL) {
+    init(directory: URL? = nil, feed: URL = UpdateController.feedURL, signature: URL = UpdateController.signatureURL,
+         bundle: URL = Bundle.main.bundleURL) {
         feedSource = feed
         signatureSource = signature
         let base = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -78,8 +82,8 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         stateURL = base.appendingPathComponent("update-check.json")
         updatesURL = base.appendingPathComponent("updates", isDirectory: true)
-        // Downloads from an earlier session are no longer needed.
-        try? FileManager.default.removeItem(at: updatesURL)
+        ownFolder = Self.downloadFolder(of: bundle, in: updatesURL).flatMap(FolderLock.init)
+        Self.cleanUp(updatesURL)
         jitter = Self.jitter(for: base.path)
         channel = UserDefaults.standard.string(forKey: Self.channelKey) ?? "build"
         super.init()
@@ -249,12 +253,13 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
                               bundleID: String? = Bundle.main.bundleIdentifier) async -> DownloadState {
         if Task.isCancelled { return .failed("the download failed or was interrupted") }
         let fm = FileManager.default
-        try? fm.removeItem(at: updates)
+        cleanUp(updates)
         let folder = updates.appendingPathComponent(UUID().uuidString, isDirectory: true)
         // Its own folder only: a newer download may already use the parent.
         func fail(_ why: String) -> DownloadState { try? fm.removeItem(at: folder); return .failed(why) }
         guard let url = URL(string: asset.url), url.scheme == "https" else { return fail("the download address is not allowed") }
         do { try fm.createDirectory(at: folder, withIntermediateDirectories: true) } catch { return fail("cannot create the download folder") }
+        guard let lock = FolderLock(folder) else { return fail("cannot create the download folder") }
         let zip = folder.appendingPathComponent(asset.name)
         // Streamed to disk in chunks; the transfer stops as soon as it would pass the announced size, so a
         // wrong or hostile response never fills the disk beyond it.
@@ -298,7 +303,7 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
         guard apps.count == 1, let app = apps.first else { return fail("the package does not contain exactly one app") }
         if let why = checkApp(app, bundleID: bundleID) { return fail(why) }
         if Task.isCancelled { return fail("the download failed or was interrupted") }
-        return .ready(ReadyDownload(version: offer.version, tag: offer.tag, sha256: asset.sha256, app: app))
+        return .ready(ReadyDownload(version: offer.version, tag: offer.tag, sha256: asset.sha256, app: app, lock: lock))
     }
 
     /// nil when the app is the official one: same bundle identifier as this app, a valid strict code
@@ -308,14 +313,48 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
         guard run("/usr/bin/codesign", ["--verify", "--deep", "--strict", app.path]).status == 0 else {
             return "the app's code signature is not valid"
         }
-        let details = run("/usr/bin/codesign", ["-dv", "--verbose=2", app.path]).output
-        guard details.split(separator: "\n").contains("TeamIdentifier=\(expectedTeam)") else {
+        // codesign evaluates the requirement on the certificates. Its printed details are never parsed: they
+        // contain the path, so a crafted name could add lines to them.
+        guard run("/usr/bin/codesign", ["--verify", "--strict", "-R", "=" + officialRequirement(bundleID), app.path]).status == 0 else {
             return "the app is not signed with the official Developer ID (\(expectedTeam))"
         }
+        guard app.lastPathComponent == appName else { return "the app has an unexpected name" }
         guard run("/usr/sbin/spctl", ["--assess", "--type", "execute", app.path]).status == 0 else {
             return "Gatekeeper does not accept the app (not notarized)"
         }
         return nil
+    }
+
+    /// Apple-issued Developer ID Application certificate of the official team, and this app's identifier.
+    static func officialRequirement(_ bundleID: String) -> String {
+        "identifier \"\(bundleID)\" and anchor apple generic"
+            + " and certificate 1[field.1.2.840.113635.100.6.2.6] exists"
+            + " and certificate leaf[field.1.2.840.113635.100.6.1.13] exists"
+            + " and certificate leaf[subject.OU] = \"\(expectedTeam)\""
+    }
+
+    /// The download folder under `updates` that `bundle` lies in, if any.
+    static func downloadFolder(of bundle: URL, in updates: URL) -> URL? {
+        let base = updates.resolvingSymlinksInPath().pathComponents
+        let path = bundle.resolvingSymlinksInPath().pathComponents
+        guard path.count > base.count, Array(path.prefix(base.count)) == base else { return nil }
+        return updates.appendingPathComponent(path[base.count], isDirectory: true)
+    }
+
+    /// Removes download folders nobody uses: no instance holds the lock, as the one that downloaded it or as
+    /// the app running from it. A folder without a lock file may be just being made, so it is kept for an hour.
+    static func cleanUp(_ updates: URL) {
+        let fm = FileManager.default
+        for folder in (try? fm.contentsOfDirectory(at: updates, includingPropertiesForKeys: [.creationDateKey])) ?? [] {
+            let fd = open(FolderLock.file(in: folder).path, O_RDWR | O_CLOEXEC)
+            guard fd >= 0 else {
+                let made = (try? folder.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date()
+                if Date().timeIntervalSince(made) > 3600 { try? fm.removeItem(at: folder) }
+                continue
+            }
+            if flock(fd, LOCK_EX | LOCK_NB) == 0 { try? fm.removeItem(at: folder) }
+            close(fd)
+        }
     }
 
     static func packageText(_ code: Int32) -> String {
@@ -374,7 +413,23 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
     }
 }
 
-struct ReadyDownload: Equatable { let version: String; let tag: String; let sha256: String; let app: URL }
+struct ReadyDownload: Equatable { let version: String; let tag: String; let sha256: String; let app: URL; let lock: FolderLock }
+
+/// A shared lock on a download folder, held as long as this object lives. Any process holding one keeps
+/// `UpdateController.cleanUp` (in every instance) from removing the folder.
+final class FolderLock: Equatable {
+    private let fd: Int32
+    static func file(in folder: URL) -> URL { folder.appendingPathComponent(".lock") }
+
+    init?(_ folder: URL) {
+        fd = open(Self.file(in: folder).path, O_RDWR | O_CREAT | O_CLOEXEC, 0o600)
+        guard fd >= 0 else { return nil }
+        guard flock(fd, LOCK_SH | LOCK_NB) == 0 else { return nil }
+    }
+
+    deinit { if fd >= 0 { close(fd) } }
+    static func == (a: FolderLock, b: FolderLock) -> Bool { a === b }
+}
 
 enum DownloadState: Equatable {
     case idle
