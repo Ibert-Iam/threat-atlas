@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     collections::VecDeque,
-    net::{TcpStream, ToSocketAddrs},
+    net::{SocketAddr, TcpStream, ToSocketAddrs},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex, OnceLock, Weak,
+        mpsc, Arc, Mutex, OnceLock, Weak,
     },
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -254,13 +254,64 @@ impl State {
         self.country_counts.summary(now)
     }
 }
-fn connect() -> Result<tungstenite::WebSocket<MaybeTlsStream<TcpStream>>, String> {
+/// Upper bound for one blocking OS DNS lookup. The resolver itself cannot be
+/// cancelled portably, so it runs on a detached thread and the worker stops
+/// waiting for it as soon as `stop` is set or the deadline passes.
+const DNS_TIMEOUT: Duration = Duration::from_secs(5);
+
+fn resolve_with<F>(
+    lookup: F,
+    timeout: Duration,
+    stop: &AtomicBool,
+) -> Result<Vec<SocketAddr>, String>
+where
+    F: FnOnce() -> std::io::Result<Vec<SocketAddr>> + Send + 'static,
+{
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let _ = tx.send(lookup());
+    });
+    let deadline = Instant::now() + timeout;
+    loop {
+        if stop.load(Ordering::Relaxed) {
+            return Err("Feed stopped during DNS lookup".into());
+        }
+        let now = Instant::now();
+        if now >= deadline {
+            return Err("DNS lookup timed out".into());
+        }
+        match rx.recv_timeout((deadline - now).min(Duration::from_millis(100))) {
+            Ok(Ok(addresses)) => return Ok(addresses),
+            Ok(Err(error)) => return Err(format!("DNS lookup failed: {error}")),
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return Err("DNS lookup failed: resolver thread ended".into())
+            }
+        }
+    }
+}
+
+fn resolve(host: &str, port: u16, stop: &AtomicBool) -> Result<Vec<SocketAddr>, String> {
+    let host = host.to_string();
+    resolve_with(
+        move || {
+            (host.as_str(), port)
+                .to_socket_addrs()
+                .map(|addresses| addresses.collect())
+        },
+        DNS_TIMEOUT,
+        stop,
+    )
+}
+
+fn connect(stop: &AtomicBool) -> Result<tungstenite::WebSocket<MaybeTlsStream<TcpStream>>, String> {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let addresses = ("threat-map-api.greynoise.io", 443)
-        .to_socket_addrs()
-        .map_err(|e| e.to_string())?;
+    let addresses = resolve("threat-map-api.greynoise.io", 443, stop)?;
     let mut tcp = None;
-    for addr in addresses.take(3) {
+    for addr in addresses.into_iter().take(3) {
+        if stop.load(Ordering::Relaxed) {
+            return Err("Feed stopped during connect".into());
+        }
         if let Ok(s) = TcpStream::connect_timeout(&addr, Duration::from_secs(5)) {
             tcp = Some(s);
             break;
@@ -288,7 +339,7 @@ fn worker(state: Arc<Mutex<State>>, stop: Arc<AtomicBool>) {
     let mut delay = 2u64;
     while !stop.load(Ordering::Relaxed) {
         let outcome = (|| -> Result<(), String> {
-            let mut socket = connect()?;
+            let mut socket = connect(&stop)?;
             {
                 let mut s = state.lock().unwrap();
                 s.connected = true;
@@ -408,5 +459,42 @@ mod tests {
         s.ingest(ROW, 1000);
         s.error = "Disconnected".into();
         assert_eq!(s.snapshot(1001).status, "OFFLINE");
+    }
+    #[test]
+    fn dns_lookup_is_bounded_and_stop_aware() {
+        let stop = AtomicBool::new(false);
+        let start = Instant::now();
+        let error = resolve_with(
+            || {
+                thread::sleep(Duration::from_millis(500));
+                Ok(Vec::new())
+            },
+            Duration::from_millis(50),
+            &stop,
+        )
+        .unwrap_err();
+        assert!(error.contains("timed out"), "unexpected error: {error}");
+        assert!(start.elapsed() < Duration::from_millis(400));
+
+        let stopped = AtomicBool::new(true);
+        let error = resolve_with(
+            || {
+                thread::sleep(Duration::from_millis(200));
+                Ok(Vec::new())
+            },
+            Duration::from_secs(5),
+            &stopped,
+        )
+        .unwrap_err();
+        assert!(error.contains("stopped"), "unexpected error: {error}");
+
+        let ok_stop = AtomicBool::new(false);
+        let addresses = resolve_with(
+            || Ok(vec!["127.0.0.1:443".parse().unwrap()]),
+            Duration::from_secs(1),
+            &ok_stop,
+        )
+        .unwrap();
+        assert_eq!(addresses.len(), 1);
     }
 }
