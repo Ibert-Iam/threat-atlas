@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-25T18:00:29Z",
+  "generated_at": "2026-11-25T18:55:34Z",
   "project": {
     "name": "Threat Atlas",
     "repository_url": "https://github.com/Ibert-Iam/threat-atlas"
@@ -138,6 +138,10 @@
       "state": "working",
       "credits": "ok",
       "credits_checked_at": "2026-11-25T16:08:48Z",
+      "credits_reading": {
+        "kind": "weekly_percent",
+        "value": 34
+      },
       "source": "status"
     },
     {
@@ -148,6 +152,10 @@
       "state": "idle",
       "credits": "empty",
       "credits_checked_at": "2026-11-25T14:00:06Z",
+      "credits_reading": {
+        "kind": "weekly_percent",
+        "value": 0
+      },
       "source": "status"
     },
     {
@@ -158,6 +166,11 @@
       "state": "working",
       "credits": "ok",
       "credits_checked_at": "2026-11-25T16:00:15Z",
+      "credits_reading": {
+        "kind": "usd",
+        "value": 49.25,
+        "full": null
+      },
       "source": "status"
     },
     {
@@ -168,6 +181,11 @@
       "state": "working",
       "credits": "ok",
       "credits_checked_at": "2026-11-25T14:05:02Z",
+      "credits_reading": {
+        "kind": "usd",
+        "value": 6.17,
+        "full": null
+      },
       "source": "status"
     }
   ]
