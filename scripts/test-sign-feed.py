@@ -152,7 +152,7 @@ class OutputPreservationTests(unittest.TestCase):
 
     def test_failure_or_interrupt_at_every_step_keeps_the_last_pair(self):
         for error in (OSError("disk full"), KeyboardInterrupt()):
-            for step in ({"copy": 1}, {"copy": 2}, {"move": (1,)}, {"move": (2,)}):
+            for step in ({"copy": 1}, {"copy": 2}, {"copy": 3}, {"copy": 4}, {"move": (1,)}, {"move": (2,)}):
                 with self.subTest(error=error, step=step):
                     self.run_failing(error, **step)
                     self.assert_untouched()
@@ -184,10 +184,12 @@ class OutputPreservationTests(unittest.TestCase):
             self.assertEqual(self.run_main(), 1)
         [stage] = [p for p in self.out.iterdir() if p.is_dir()]
         self.assertEqual((stage / "old-feed.json").read_text(), "LAST GOOD FEED")
+        self.assertEqual((stage / "old-feed.json.sig").read_text(), "LAST GOOD SIG")
         self.assertIn("KeyboardInterrupt", stderr.getvalue())
 
     def test_a_failed_restore_keeps_the_backup_and_says_where(self):
-        for failing, left in (((2, 3), "old-feed.json"), ((2, 4), "old-feed.json.sig")):
+        # (2, 3): the feed is not put back, the signature is; (2, 4): the other way round; (2, 3, 4): neither.
+        for failing in ((2, 3), (2, 4), (2, 3, 4)):
             with self.subTest(failing=failing):
                 (self.out / "feed.json").write_text("LAST GOOD FEED")
                 (self.out / "feed.json.sig").write_text("LAST GOOD SIG")
@@ -195,8 +197,27 @@ class OutputPreservationTests(unittest.TestCase):
                 [stage] = [p for p in self.out.iterdir() if p.is_dir()]
                 self.assertIn(str(stage), stderr)
                 self.assertNotIn("is in place", stderr)
-                self.assertTrue((stage / left).read_text().startswith("LAST GOOD"))
+                self.assertIn("(old-feed.json, old-feed.json.sig)", stderr)
+                self.assertEqual((stage / "old-feed.json").read_text(), "LAST GOOD FEED")
+                self.assertEqual((stage / "old-feed.json.sig").read_text(), "LAST GOOD SIG")
                 sf.shutil.rmtree(stage)
+
+    def test_a_failed_restore_names_only_the_files_that_existed(self):
+        for old, failing in (("feed.json", (2, 3)), ("feed.json.sig", (2, 3))):
+            with self.subTest(old=old):
+                for name in ("feed.json", "feed.json.sig"):
+                    (self.out / name).unlink(missing_ok=True)
+                (self.out / old).write_text("OLD")
+                stderr = self.run_failing(OSError("disk full"), move=failing)
+                [stage] = [p for p in self.out.iterdir() if p.is_dir()]
+                self.assertIn(f"(old-{old})", stderr)
+                self.assertEqual([p.name for p in stage.glob("old-*")], ["old-" + old])
+                sf.shutil.rmtree(stage)
+        for name in ("feed.json", "feed.json.sig"):
+            (self.out / name).unlink(missing_ok=True)
+        with mock.patch.object(sf.pathlib.Path, "unlink", side_effect=OSError("read-only")):
+            stderr = self.run_failing(OSError("disk full"), move=(2,))
+        self.assertIn("(there was none)", stderr)
 
 
 if __name__ == "__main__":

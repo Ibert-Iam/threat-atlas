@@ -113,7 +113,9 @@ def main(argv=None):
         except RestoreFailed as error:
             keep_stage = True
             print(f"REFUSED: could not replace the published pair, and could not put the last good pair back: "
-                  f"{error}. Its copy is in {stage} (old-feed.json, old-feed.json.sig); do not publish {out}.",
+                  f"{error}. Every file that was there before has its copy in {stage} "
+                  f"({', '.join(sorted(p.name for p in stage.glob('old-*'))) or 'there was none'}); "
+                  f"do not publish {out}.",
                   file=sys.stderr)
             return 1
     finally:
@@ -130,19 +132,23 @@ def main(argv=None):
 
 
 class RestoreFailed(Exception):
-    """The old pair could not be put back; its only copy is in the staging folder."""
+    """The old pair could not be put back completely; the staging folder still has a copy of all of it."""
 
 
 def replace_pair(new_feed, new_sig, out, stage):
     """Moves the new feed and signature into OUT, or leaves OUT as it was. The old pair is copied (not moved)
     into STAGE first, so a failure there touches nothing. A failure or Ctrl-C while the new files move in puts
     the old pair back; when that fails too, RestoreFailed is raised and STAGE must be kept. A kill -9 between
-    the two moves is not covered: the old pair is then in the staging folder."""
+    the two moves is not covered: the old pair is then in the staging folder.
+
+    Each old file is copied twice up front: "restore-*" is moved back on failure (a move needs no disk space),
+    and "old-*" stays in STAGE so both files are still there if only one of them could be put back."""
     backups = []
     for target in (out / "feed.json", out / "feed.json.sig"):
-        backup = stage / ("old-" + target.name)
+        backup = stage / ("restore-" + target.name)
         backups.append((target, backup if target.exists() else None))
         if target.exists():
+            shutil.copy2(target, stage / ("old-" + target.name))
             shutil.copy2(target, backup)
     try:
         os.replace(new_feed, out / "feed.json")
