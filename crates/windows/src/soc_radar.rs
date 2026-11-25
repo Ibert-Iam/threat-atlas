@@ -332,7 +332,7 @@ pub(crate) fn https_get(host: &str, path: &str, headers: &str, max_bytes: usize)
     https_get_policy(host, path, headers, max_bytes, false, None)
 }
 
-/// HTTPS GET for public, keyless data. Redirects are followed; cookies stay disabled.
+/// HTTPS GET for public, keyless data. HTTPS redirects are followed (never down to HTTP); cookies stay disabled.
 pub(crate) fn https_get_public(
     host: &str,
     path: &str,
@@ -401,7 +401,7 @@ fn https_get_policy(
             return None;
         }
         let policy: u32 = if follow {
-            WINHTTP_OPTION_REDIRECT_POLICY_ALWAYS
+            WINHTTP_OPTION_REDIRECT_POLICY_DISALLOW_HTTPS_TO_HTTP
         } else {
             WINHTTP_OPTION_REDIRECT_POLICY_NEVER
         };
