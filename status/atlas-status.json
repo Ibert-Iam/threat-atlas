@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-26T20:00:26Z",
+  "generated_at": "2026-11-26T21:00:29Z",
   "project": {
     "name": "Threat Atlas",
     "repository_url": "https://github.com/Ibert-Iam/threat-atlas"
@@ -58,66 +58,39 @@
       "id": "desktop",
       "name": "AtlasSOC Desktop",
       "stable": {
-        "tag": "atlassoc-v0.7.0",
-        "name": "AtlasSOC Desktop 0.7.0 \u2014 Stable \u00b7 Windows + macOS \u00b7 build 13",
-        "published_at": "2026-11-11T11:31:49Z",
-        "url": "https://github.com/Ibert-Iam/threat-atlas/releases/tag/atlassoc-v0.7.0",
+        "tag": "atlassoc-v0.8.0",
+        "name": "AtlasSOC Desktop 0.8.0 \u2014 Stable \u00b7 Windows + macOS \u00b7 build 17",
+        "published_at": "2026-11-26T20:36:48Z",
+        "url": "https://github.com/Ibert-Iam/threat-atlas/releases/tag/atlassoc-v0.8.0",
         "assets": [
           {
-            "name": "AtlasSOC-macOS-universal-v0.7.0-build13-signed.zip",
-            "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0/AtlasSOC-macOS-universal-v0.7.0-build13-signed.zip",
-            "sha256": "f15fee1519b63b1e850823c84397f6917910ae4b473a7cc418dab8de17abce31"
+            "name": "AtlasSOC-macOS-universal-v0.8.0-build17.zip",
+            "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0/AtlasSOC-macOS-universal-v0.8.0-build17.zip",
+            "sha256": "ab2df92d921453cbded277fa40cbc5433f70be9cb3cf15beb24d0e2a7a4b1060"
           },
           {
-            "name": "AtlasSOC-Setup-0.7.0-build13.exe",
-            "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0/AtlasSOC-Setup-0.7.0-build13.exe",
-            "sha256": "d19fe9ba1423eebf7b4e71919029e73a5aae90cb6bacc820b4ce71fd6d9f3f11"
+            "name": "AtlasSOC-Setup-0.8.0-build17.exe",
+            "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0/AtlasSOC-Setup-0.8.0-build17.exe",
+            "sha256": "7c6f93d533b7818f3fdb0e55ec2fbb437843df48d5ac53ae8f9321a21ebadee2"
           },
           {
-            "name": "AtlasSOC-source-v0.7.0.zip",
-            "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0/AtlasSOC-source-v0.7.0.zip",
-            "sha256": "b47bdd25575710d9ca2f895aa7eceac1ac5c317007323f3de29e8de02ee1ae65"
+            "name": "AtlasSOC-source-v0.8.0.zip",
+            "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0/AtlasSOC-source-v0.8.0.zip",
+            "sha256": "17a436212b87a8404c6ba7c07dd1f9afdf33146bded505eb6da92069f3ad2185"
           },
           {
-            "name": "AtlasSOC-v0.7.0-SHA256SUMS.txt",
-            "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0/AtlasSOC-v0.7.0-SHA256SUMS.txt",
-            "sha256": "88e236b7cd26eae472f67f3001c19ad9246d89df42c9b64c0398463376f24da7"
+            "name": "AtlasSOC-v0.8.0-SHA256SUMS.txt",
+            "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0/AtlasSOC-v0.8.0-SHA256SUMS.txt",
+            "sha256": "b3f0d69d277ef22d0d276851eafb73b73327741bb026d02acb785055769dec97"
           },
           {
-            "name": "AtlasSOC-Windows-x64-v0.7.0-build13.zip",
-            "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.7.0/AtlasSOC-Windows-x64-v0.7.0-build13.zip",
-            "sha256": "e82b270b67718fe24081da853121e37fa7d223dcf8cdfe5c2c0000f37878db4b"
+            "name": "AtlasSOC-Windows-x64-v0.8.0-build17.zip",
+            "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0/AtlasSOC-Windows-x64-v0.8.0-build17.zip",
+            "sha256": "8d0e43c8518204b040ade5b5ed39d1b16530c3b5598febfb50c8603c57c046a5"
           }
         ]
       },
-      "preview": {
-        "tag": "atlassoc-v0.8.0-rc.1",
-        "name": "AtlasSOC Desktop 0.8.0-rc.1 (build 15) - release candidate",
-        "published_at": "2026-11-15T19:54:43Z",
-        "url": "https://github.com/Ibert-Iam/threat-atlas/releases/tag/atlassoc-v0.8.0-rc.1",
-        "assets": [
-          {
-            "name": "AtlasSOC-macOS-universal-v0.8.0-rc.1-build15.zip",
-            "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0-rc.1/AtlasSOC-macOS-universal-v0.8.0-rc.1-build15.zip",
-            "sha256": "dcbf8313482328b2e35e794c66248f1d884415b14d744cf845c4e21b4bd0c8f0"
-          },
-          {
-            "name": "AtlasSOC-Setup-0.8.0-build15.exe",
-            "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0-rc.1/AtlasSOC-Setup-0.8.0-build15.exe",
-            "sha256": "e86ecccc3f348de59d04af80637bae2e4d76829df27f8a4178e0bd39b31acc13"
-          },
-          {
-            "name": "AtlasSOC-v0.8.0-rc.1-SHA256SUMS.txt",
-            "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0-rc.1/AtlasSOC-v0.8.0-rc.1-SHA256SUMS.txt",
-            "sha256": "41f92a411a6845b3c39eeb54857b1b94c4c719c9e8506b8ffd05f1d5d7dd3487"
-          },
-          {
-            "name": "AtlasSOC-Windows-x64-v0.8.0-rc.1-build15.zip",
-            "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0-rc.1/AtlasSOC-Windows-x64-v0.8.0-rc.1-build15.zip",
-            "sha256": "9d5cc610cca083be41f6f381668a2c32aeb196bc5e6f6c7b458d89380396b91d"
-          }
-        ]
-      }
+      "preview": null
     }
   ],
   "rules": {
@@ -134,7 +107,7 @@
       "id": "cl",
       "name": "Jean-Claude Van Damme",
       "role": "CBO, Chief Bot Officer (Claude)",
-      "last_seen_at": "2026-11-26T20:00:03Z",
+      "last_seen_at": "2026-11-26T21:00:12Z",
       "state": "working",
       "credits": "ok",
       "credits_checked_at": "2026-11-26T16:08:07Z",
@@ -162,7 +135,7 @@
       "id": "noris",
       "name": "Seek Norris",
       "role": "CMO, Chief Marketing Officer (DeepSeek)",
-      "last_seen_at": "2026-11-26T20:00:17Z",
+      "last_seen_at": "2026-11-26T21:00:10Z",
       "state": "working",
       "credits": "ok",
       "credits_checked_at": "2026-11-26T16:00:21Z",
@@ -177,7 +150,7 @@
       "id": "billy",
       "name": "Billy Badass",
       "role": "Crew (DeepSeek)",
-      "last_seen_at": "2026-11-26T20:00:03Z",
+      "last_seen_at": "2026-11-26T21:00:04Z",
       "state": "working",
       "credits": "ok",
       "credits_checked_at": "2026-11-26T16:05:01Z",
