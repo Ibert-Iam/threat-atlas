@@ -24,8 +24,8 @@ AtlasSOC is free and non-commercial. The data sources are licensed for non-comme
 - **Fixes:** help links point to the public repository.
 - **Hardening:** dependency audit in CI; macOS update checks verify the app’s version, build and notarization; the
   feed generator requires one consistent build for macOS assets.
-- **Not in this release:** Windows code signing. Windows packages stay unsigned; trusted code signing is not
-  planned.
+- **Not in this release:** Windows code signing. Windows packages stay unsigned; trusted Windows signing is not
+  possible at present (paid certificate; open-source programmes declined).
 
 ## Platforms
 

@@ -47,8 +47,9 @@ clear result for every outcome. A failed check is never shown as "up to date".
 
 Downloads happen only after a click. The installer or app is checked for exact size and SHA-256; on macOS it must
 also carry the official Developer ID, notarization and a Gatekeeper pass. The Windows installer opens normally and
-the macOS app is shown in Finder. Nothing installs silently. Windows builds remain unsigned; trusted Windows code
-signing is not planned.
+the macOS app is shown in Finder. Nothing installs silently. Windows builds remain unsigned: trusted Windows code
+signing is not possible at present (paid certificate; open-source programmes declined), so SmartScreen or policy may
+warn; do not disable OS protections.
 
 The release also includes prompt feed-worker shutdown with slow DNS, smoother realtime arcs, compass/hourly time-zone
 labels, corrected help links, and a dependency audit in CI. [Release notes](docs/RELEASE-0.8.0-rc.2.md),
