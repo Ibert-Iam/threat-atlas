@@ -1,3 +1,9 @@
+## AtlasSOC Desktop 0.8.0 — stable, 26 November 2026, build 17
+
+Stable release for Windows x64 (unsigned) and macOS 14+ (Developer ID signed and notarised). It is the tested 0.8.0-rc.2
+code (candidate `1b52a34`) with only the version identity changed; rc.2 was not published separately. Everything
+below under 0.8.0-rc.2 and 0.8.0-rc.1 is in this release.
+
 ## AtlasSOC Desktop 0.8.0-rc.2 — release candidate 2, 26 November 2026, build 16
 
 Pre-release (not the latest stable) for Windows x64 (unsigned) and macOS 14+ (Developer ID signed and notarised).

@@ -38,9 +38,9 @@ screenshot thumbnails. These historical packages predate the signed feed; curren
 Manual platform acceptance remains incomplete; see docs/QUALITY.md.
 See [release/version handling](docs/RELEASING.md) and [change history](CHANGELOG.md).
 
-## AtlasSOC Desktop 0.8.0 release candidate 2
+## AtlasSOC Desktop 0.8.0 (stable)
 
-**AtlasSOC Desktop 0.8.0-rc.2** (build 16) is the current pre-release for Windows x64 (unsigned) and macOS 14+. It
+**AtlasSOC Desktop 0.8.0** (build 17) is the current stable release for Windows x64 (unsigned) and macOS 14+ (Developer ID signed and notarised). It
 keeps the 13 optional OSINT sources and adds a real **Settings → Updates** view: a daily check of the signed update
 feed (Ed25519, offline recovery key with a delegated signer), channels Stable / Release Candidates / Betas, and a
 clear result for every outcome. A failed check is never shown as "up to date".

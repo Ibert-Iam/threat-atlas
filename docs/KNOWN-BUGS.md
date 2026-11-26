@@ -11,7 +11,7 @@ Historical version-specific observations below are retained; no unverified issue
 
 - Screensaver 0.4.8 and Desktop 0.7.0 macOS downloads are Developer ID signed, notarized and stapled according to the published release records. Their assets are listed on GitHub; this documentation pass did not repeat signature or Gatekeeper tests.
 - Windows packages remain unsigned. The screensaver has an all-users MSI and ZIP; Desktop has a Just me / Everyone installer and portable ZIP. Trusted Windows code signing is not planned; SmartScreen or policy may warn. Automated installer checks are distinct from physical install/upgrade acceptance.
-- AtlasSOC 0.8.0-rc.2 is the current release candidate; its exact limits are in the rc.2 section below and in [RELEASE-0.8.0-rc.2.md](RELEASE-0.8.0-rc.2.md).
+- AtlasSOC 0.8.0 (build 17) is the current stable release; it is the rc.2 code, and its exact limits are in the rc.2 section below and in [RELEASE-0.8.0-rc.2.md](RELEASE-0.8.0-rc.2.md).
 - Windows panorama supports two matching side-by-side displays. Mixed DPI/resolution, hot-plug, physical 150/200% scaling and physical ultrawide acceptance remain incomplete.
 - Desktop's beta.2 F11 fullscreen report has not been re-verified on stable 0.7.0. Do not infer resolution from the existence of an F11 command.
 - Intel Mac hardware remains untested; Rosetta results are not physical Intel acceptance.
@@ -24,7 +24,7 @@ The distribution and Windows troubleshooting sections below describe 0.4.0,
 0.4.1-rc.1 and 0.4.2-rc.1 unless stated otherwise. They do not describe current
 macOS trust or withdraw the current 0.4.8 Windows MSI.
 
-## AtlasSOC Desktop 0.8.0-rc.2 (build 16)
+## AtlasSOC Desktop 0.8.0 (build 17, stable; the 0.8.0-rc.2 code)
 
 Release candidate. Windows is unsigned; trusted Windows code signing is not planned. The Settings → Updates view and
 the signed feed replace the old release-page-only button. The macOS release asset is Developer ID signed and notarised;

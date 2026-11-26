@@ -1,7 +1,7 @@
 # AtlasSOC Desktop 0.8.0-rc.2 — release candidate 2 (build 16)
 
-**Status: pre-release, not the latest stable.** AtlasSOC Desktop 0.7.0 stays the stable version. This is a release
-candidate for wider testing before 0.8.0. Report problems at <https://github.com/Ibert-Iam/threat-atlas/issues>
+**Status: released as the stable AtlasSOC Desktop 0.8.0 (build 17) on 26 November 2026.** These notes describe the
+rc.2 code that became 0.8.0; rc.2 was not published separately. Downloads: the `atlassoc-v0.8.0` release. Report problems at <https://github.com/Ibert-Iam/threat-atlas/issues>
 (never attach a key or token).
 
 AtlasSOC is free and non-commercial. The data sources are licensed for non-commercial use; see
@@ -33,8 +33,8 @@ AtlasSOC is free and non-commercial. The data sources are licensed for non-comme
 
 | Platform | File | Signing |
 |---|---|---|
-| Windows 10/11 x64 | `AtlasSOC-Setup-0.8.0-build16.exe` (Just me or Everyone) and portable ZIP | **Unsigned.** SmartScreen or organisational policy may warn or block; do not disable protections. |
-| macOS 14+ (Apple silicon and Intel) | `AtlasSOC-macOS-universal-v0.8.0-rc.2-build16` ZIP | Developer ID signed and notarised (Gatekeeper: *Notarized Developer ID*). |
+| Windows 10/11 x64 | `AtlasSOC-Setup-0.8.0-build17.exe` (Just me or Everyone) and portable ZIP | **Unsigned.** SmartScreen or organisational policy may warn or block; do not disable protections. |
+| macOS 14+ (Apple silicon and Intel) | `AtlasSOC-macOS-universal-v0.8.0-build17` ZIP | Developer ID signed and notarised (Gatekeeper: *Notarized Developer ID*). |
 
 Linux is not part of this release candidate; the existing 0.7.0 Linux preview is unchanged.
 
