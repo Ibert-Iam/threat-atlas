@@ -541,6 +541,13 @@ impl SocView {
             _ => (ARCS_PER_SECOND, MAX_ARCS, ARC_LIFE_MS, ARC_FADE_IN_MS),
         };
         self.tokens = (self.tokens + elapsed / 1000. * rate).min(rate * 1.5);
+        // A restarted feed (a new shared worker after every holder dropped it) counts records from zero
+        // again. Without this reset no record would ever be "new" again: arcs stop for good while the
+        // counters keep working.
+        if s.records < self.last_sequence {
+            self.last_sequence = 0;
+            self.pending_arcs.clear();
+        }
         let mut fresh: Vec<_> = s
             .recent
             .iter()
@@ -2325,6 +2332,40 @@ mod tests {
         late.now_ms += REALTIME_ARC_LIFE_MS;
         view.update_arcs(&late);
         assert!(view.arcs.is_empty());
+    }
+    #[test]
+    fn arcs_resume_after_the_feed_restarts() {
+        for motion in [Motion::Realtime, Motion::Calm] {
+            let mut view = SocView::new();
+            view.options.motion = motion;
+            let start = 3_000_000;
+            let mut first = State::default();
+            for _ in 0..500 {
+                first.ingest(&row("NL", "US", "malicious"), start);
+            }
+            for f in 0..120 {
+                view.update_arcs(&first.snapshot(start + f * 16));
+            }
+            assert!(
+                !view.arcs.is_empty(),
+                "{motion:?}: arcs from the first feed"
+            );
+            // The shared feed is dropped and started again: its record counter restarts at zero.
+            let later = start + REALTIME_ARC_LIFE_MS + ARC_LIFE_MS + 1;
+            let mut second = State::default();
+            for _ in 0..5 {
+                second.ingest(&row("DE", "US", "malicious"), later);
+            }
+            let mut seen = 0;
+            for f in 0..120 {
+                view.update_arcs(&second.snapshot(later + f * 16));
+                seen += view.arcs.iter().filter(|a| a.born >= later).count();
+            }
+            assert!(
+                seen > 0,
+                "{motion:?}: arcs must resume after a feed restart"
+            );
+        }
     }
     #[test]
     fn realtime_continuous_input_respects_rate_budget() {
