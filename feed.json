@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-23T13:36:02Z",
+  "generated_at": "2026-11-26T20:37:07Z",
   "products": {
     "atlassoc": {
       "channels": {
         "stable": {
-          "version": "0.7.0",
-          "tag": "atlassoc-v0.7.0"
+          "version": "0.8.0",
+          "tag": "atlassoc-v0.8.0"
         },
         "rc": {
           "version": "0.8.0-rc.1",
@@ -18,6 +18,48 @@
         }
       },
       "releases": [
+        {
+          "version": "0.8.0",
+          "build": 17,
+          "tag": "atlassoc-v0.8.0",
+          "channel": "stable",
+          "published_at": "2026-11-26T20:36:48Z",
+          "assets": [
+            {
+              "platform": "any",
+              "kind": "checksums",
+              "name": "AtlasSOC-v0.8.0-SHA256SUMS.txt",
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0/AtlasSOC-v0.8.0-SHA256SUMS.txt",
+              "sha256": "b3f0d69d277ef22d0d276851eafb73b73327741bb026d02acb785055769dec97",
+              "size": 408
+            },
+            {
+              "platform": "macos-universal",
+              "kind": "portable",
+              "name": "AtlasSOC-macOS-universal-v0.8.0-build17.zip",
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0/AtlasSOC-macOS-universal-v0.8.0-build17.zip",
+              "sha256": "ab2df92d921453cbded277fa40cbc5433f70be9cb3cf15beb24d0e2a7a4b1060",
+              "size": 9139641
+            },
+            {
+              "platform": "windows-x64",
+              "kind": "installer",
+              "name": "AtlasSOC-Setup-0.8.0-build17.exe",
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0/AtlasSOC-Setup-0.8.0-build17.exe",
+              "sha256": "7c6f93d533b7818f3fdb0e55ec2fbb437843df48d5ac53ae8f9321a21ebadee2",
+              "size": 4291461
+            },
+            {
+              "platform": "windows-x64",
+              "kind": "portable",
+              "name": "AtlasSOC-Windows-x64-v0.8.0-build17.zip",
+              "url": "https://github.com/Ibert-Iam/threat-atlas/releases/download/atlassoc-v0.8.0/AtlasSOC-Windows-x64-v0.8.0-build17.zip",
+              "sha256": "8d0e43c8518204b040ade5b5ed39d1b16530c3b5598febfb50c8603c57c046a5",
+              "size": 2854118
+            }
+          ],
+          "notes_url": "https://github.com/Ibert-Iam/threat-atlas/releases/tag/atlassoc-v0.8.0"
+        },
         {
           "version": "0.8.0-rc.1",
           "build": 15,
