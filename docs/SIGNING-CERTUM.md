@@ -1,3 +1,6 @@
+> **Historical, not the current plan.** The owner dropped trusted Windows code signing on 24 November 2026.
+> This procedure is retained only as a record; do not order or apply a certificate for RC2 or a later release.
+
 # Windows signing with Certum Open Source Code Signing in the Cloud
 
 Status: **prepared, not yet used.** The owner has bought the certificate (14 Nov 2026); identity
