@@ -26,11 +26,11 @@ macOS trust or withdraw the current 0.4.8 Windows MSI.
 
 ## AtlasSOC Desktop 0.8.0 (build 17, stable; the 0.8.0-rc.2 code)
 
-Release candidate. Windows is unsigned; trusted Windows code signing is not planned. The Settings → Updates view and
+Stable release (the tested 0.8.0-rc.2 code). Windows is unsigned; trusted Windows code signing is not planned. The Settings → Updates view and
 the signed feed replace the old release-page-only button. The macOS release asset is Developer ID signed and notarised;
 macOS and Windows acceptance passed (see QUALITY.md). The full list is in the rc.1 table below; the fixed rows are marked.
 
-Known in 0.8.0-rc.2 (fix planned for the next version):
+Known in 0.8.0 (fix planned for the next version):
 - **Realtime arcs come in bursts.** Each GreyNoise batch is drawn within about one second, so when batches arrive every few seconds the arcs pulse instead of flowing. Counters and data are not affected. The fix spreads each batch over the measured interval between batches.
 - **Settings → Updates on macOS** can show "Not checked yet" next to an earlier "Last check" time until the first check of the session. Cosmetic.
 

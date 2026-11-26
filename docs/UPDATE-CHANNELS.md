@@ -1,8 +1,9 @@
 # Update channels, automatic upgrades and the update feed (plan for the next version)
 
-Status: **partly shipped in AtlasSOC Desktop 0.8.0-rc.2.** WP1 (feed and signing), WP2 (core check and state),
-WP3 (Windows Settings → Updates) and WP4 (macOS Settings → Updates) are in RC2. WP5 (screensaver banner/button) and
-WP6 (`get-latest` scripts) are not shipped in RC2; automatic install modes and the remaining items stay future work.
+Status: **partly shipped in AtlasSOC Desktop 0.8.0 (stable, 26 November 2026).** WP1 (feed and signing), WP2 (core check
+and state), WP3 (Windows Settings → Updates) and WP4 (macOS Settings → Updates) are in 0.8.0. WP5 (screensaver
+banner/button) and WP6 (`get-latest` scripts) are not shipped yet; automatic install modes and the remaining items
+stay future work.
 The specification was requested by the owner on 16 November 2026 after AtlasSOC 0.8.0-rc.1. The owner decisions in
 section 10 were taken on 16 November 2026 (all recommendations accepted).
 
@@ -20,8 +21,8 @@ section 10 were taken on 16 November 2026 (all recommendations accepted).
 - `crates/core/src/update.rs`: parses GitHub release JSON; `newer(body, current, include_prerelease)` picks the newest non-draft release; `is_prerelease(identity)` makes a pre-release build follow the beta channel. Only two modes exist (stable, "includes pre-releases").
 - `scripts/update-atlassoc.ps1`: Windows script with channels `stable` and `beta`; verifies the installer SHA-256 against the digest GitHub reports and starts the normal interactive installer.
 - `crates/windows/src/soc_update.rs`, `macos/Updater.swift`, `updater/Update-ThreatAtlas.ps1`: per-user updaters for the screensaver. They read only `releases/latest` (stable) and reject pre-releases. `docs/UPDATES.md` describes this and its trust rules.
-- AtlasSOC Settings → Updates in RC2 shows the installed version/build and the signed-feed check. The old RC1 text that called a signed build “not Developer ID signed yet” is fixed in RC2.
-- AtlasSOC releases must stay pre-release with `latest=false` while a screensaver stable is `releases/latest`, because the screensaver updaters read `releases/latest`. That coupling is exactly why a feed is needed.
+- AtlasSOC Settings → Updates in 0.8.0 shows the installed version/build and the signed-feed check. The old RC1 text that called a signed build “not Developer ID signed yet” is fixed in RC2.
+- AtlasSOC releases are never `releases/latest` (`make_latest=false`) while a screensaver stable is `releases/latest`, because the screensaver updaters read `releases/latest`. Stable AtlasSOC releases are published as non-pre-release (0.7.0, 0.8.0) but not latest. That coupling is exactly why a feed is needed.
 
 ## 3. Channels and fallback
 

@@ -68,10 +68,10 @@ stable; 0.7.0 stays stable.
 | 012 | Spamhaus DROP | no | included |
 | 013 | Phishing.Database (replaces PhishTank) | no | included |
 
-## AtlasSOC Desktop 0.8.0-rc.2 (build 16, unreleased)
+## AtlasSOC Desktop 0.8.0 (build 17, stable, 26 November 2026)
 
-Current release candidate, not published. The pinned candidate is recorded on the milestone tracker; this map is
-not a release record.
+Published as stable from the tested 0.8.0-rc.2 code; rc.2 was not published separately. Both public-release gates are
+met: the hardening round and new tests, and documentation for every new feature (evidence in QUALITY.md).
 
 - **Settings → Updates** on Windows and macOS: signed update feed (Ed25519; offline recovery key with a delegated
   signer), channels Stable / Release Candidates / Betas, and a clear result for every outcome.
