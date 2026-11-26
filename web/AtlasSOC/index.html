@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' wss://threat-map-api.greynoise.io; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>AtlasSOC — live in your browser</title>
+<link rel="stylesheet" href="atlassoc.css">
+</head>
+<body>
+<main>
+  <section id="gate" class="gate">
+    <p class="eyebrow">ATLASSOC · WEB</p>
+    <h1>AtlasSOC, live in your browser</h1>
+    <p>The same live SOC map as the AtlasSOC desktop app, drawn by the same code (compiled to WebAssembly). It shows
+      records from the <strong>GreyNoise public threat map</strong> as they arrive.</p>
+    <ul>
+      <li><strong>Received records, not unique attacks.</strong> GreyNoise classifies them; no endorsement is implied.</li>
+      <li><strong>Data use:</strong> the live feed is heavy, about 0.5–1 MB per second (up to about 2 GB per hour).
+        Avoid metered or mobile data. The view pauses whenever this tab is hidden.</li>
+      <li><strong>Privacy:</strong> your browser connects directly to GreyNoise (<code>threat-map-api.greynoise.io</code>),
+        so GreyNoise sees your IP address. This page sends nothing else, sets no cookies and has no tracking.</li>
+      <li>Not included on the web: Cloudflare Radar, OSINT sources, settings. Use the desktop app for those.</li>
+    </ul>
+    <p><button id="start" type="button">Start live view</button>
+      <a class="secondary" href="https://github.com/Ibert-Iam/threat-atlas/releases/tag/atlassoc-v0.8.0">Desktop app (Windows, macOS) ↗</a></p>
+    <p class="legal">AtlasSOC is free, non-commercial and open source (MIT). Maintained by Robert Ibert, who is personally
+      responsible for what is published; not an Ibert Consulting product.</p>
+  </section>
+  <section id="live" class="live" hidden>
+    <div class="bar">
+      <span id="status" class="status">Connecting…</span>
+      <button id="stop" type="button">Stop</button>
+    </div>
+    <canvas id="soc" width="1440" height="900" aria-label="Live SOC map of received GreyNoise threat-map records"></canvas>
+    <p class="note">GreyNoise public threat map: received records, not unique attacks · times UTC and your local time ·
+      AtlasSOC 0.8.0 web · <a href="https://github.com/Ibert-Iam/threat-atlas">source ↗</a></p>
+  </section>
+  <noscript><p>AtlasSOC needs JavaScript and WebAssembly. The <a href="https://github.com/Ibert-Iam/threat-atlas/releases/tag/atlassoc-v0.8.0">desktop app</a> works without a browser.</p></noscript>
+</main>
+<script src="atlassoc.js"></script>
+</body>
+</html>
