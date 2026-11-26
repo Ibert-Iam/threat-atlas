@@ -193,6 +193,9 @@ import Foundation
         // An installed official (Developer ID, notarised) copy; ATLAS_TEST_OFFICIAL_APP points elsewhere when
         // /Applications holds a local build, which checkApp rightly refuses.
         let official = URL(fileURLWithPath: ProcessInfo.processInfo.environment["ATLAS_TEST_OFFICIAL_APP"] ?? "/Applications/AtlasSOC.app")
+        if !FileManager.default.fileExists(atPath: official.path) {
+            print("SKIP the official-app check: no official copy at \(official.path)")
+        }
         if FileManager.default.fileExists(atPath: official.path) {
             let info = NSDictionary(contentsOf: official.appendingPathComponent("Contents/Info.plist"))!
             let version = info["CFBundleShortVersionString"] as! String, build = UInt32(info["CFBundleVersion"] as! String)!
