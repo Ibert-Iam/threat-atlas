@@ -144,6 +144,8 @@ pub struct Renderer {
     local_location: Option<(f64, f64)>,
     /// The SOC frame is painted for the screensaver: no "SOC DESKTOP" badge and the saver's own version.
     pub(crate) saver_identity: bool,
+    /// Cached once-per-minute solar night/twilight tint; the mask is not recomputed per frame.
+    night: Option<(u64, Pixmap)>,
 }
 /// Column boundary between the map and the right-hand panels in the 1440x900 layout.
 pub(crate) const WIDE_SPLIT: f32 = 1015.;
@@ -262,6 +264,7 @@ impl Renderer {
             pal,
             local_location: None,
             saver_identity: false,
+            night: None,
         }
     }
     /// Frame x for a layout x: right-hand column shifted in a wide SOC frame.
@@ -307,6 +310,60 @@ impl Renderer {
     fn draw_release_label(&mut self, release: &str) {
         self.text(1120, 875, 12, &release_label(release), MUTED);
     }
+    /// Draw the cached night/twilight tint over the map, below country highlights, routes and labels.
+    fn draw_night(&mut self, now_ms: u64) {
+        const X: f32 = 45.0;
+        const Y: f32 = 230.0;
+        const W: u32 = 940;
+        const H: u32 = 470;
+        let minute = now_ms / 60_000;
+        if !self.night.as_ref().is_some_and(|(m, _)| *m == minute) {
+            let mut mask = Pixmap::new(W, H).unwrap();
+            let (sub_lat, sub_lon) = crate::solar::subsolar_point(now_ms);
+            let sun_lat = sub_lat.to_radians();
+            let sun_lon = sub_lon.to_radians();
+            let data = mask.data_mut();
+            for y in 0..H {
+                let lat = 90.0 - 180.0 * (y as f64 + 0.5) / H as f64;
+                for x in 0..W {
+                    let lon = -180.0 + 360.0 * (x as f64 + 0.5) / W as f64;
+                    let cz = lat.to_radians().sin() * sun_lat.sin()
+                        + lat.to_radians().cos()
+                            * sun_lat.cos()
+                            * (lon.to_radians() - sun_lon).cos();
+                    let twilight = (-6.0f64).to_radians().sin();
+                    let alpha = if cz < twilight {
+                        0.45
+                    } else if cz < 0.0 {
+                        0.45 * (cz / twilight).clamp(0.0, 1.0)
+                    } else {
+                        0.0
+                    };
+                    if alpha > 0.0 {
+                        let a = (alpha * 255.0) as u8;
+                        let i = (y as usize * W as usize + x as usize) * 4;
+                        // Premultiplied RGBA, matching tiny-skia's Pixmap format.
+                        data[i] = (2.0 * alpha) as u8;
+                        data[i + 1] = (6.0 * alpha) as u8;
+                        data[i + 2] = (13.0 * alpha) as u8;
+                        data[i + 3] = a;
+                    }
+                }
+            }
+            self.night = Some((minute, mask));
+        }
+        if let Some((_, mask)) = &self.night {
+            self.pix.draw_pixmap(
+                X as i32,
+                Y as i32,
+                mask.as_ref(),
+                &PixmapPaint::default(),
+                Transform::identity(),
+                None,
+            );
+        }
+    }
+
     /// Background, panels, graticule and land shared by the screensaver and the standalone SOC view.
     fn base_map(&mut self) {
         let pal = self.pal;
@@ -856,6 +913,7 @@ impl Renderer {
             return self.draw_panorama(s);
         }
         self.pix.data_mut().copy_from_slice(self.base.data());
+        self.draw_night(s.now_ms);
         let pal = self.pal;
         let classes = self.countries.classes(s);
         if classes != self.country_classes {
@@ -1039,7 +1097,7 @@ mod tests {
             .map(|b| format!("{b:02x}"))
             .collect();
         assert_eq!(
-            hex, "ab6c57c60574519aa430373afa6379b5e34bcd066896d7dd418a1611bac412a6",
+            hex, "648b06947ac397aee806942af2ebee12d04bfeadae4cb7d2bdc37cf8cd2bbb7b",
             "Classic frame changed"
         );
     }
