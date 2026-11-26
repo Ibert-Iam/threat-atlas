@@ -198,6 +198,35 @@ No High finding. One Medium, open at 4807d49 and closed for RC2 only if the RC2 
 - `scripts/update_feed.py` builds a feed without `signing_keys`; the signing step in #143 has to add the
   delegation, or apps will accept only a feed signed directly with R1.
 
+## Hardening round for 0.8.0-rc.2 (Gate 3)
+
+Candidate `1b52a34` (threat-atlas `main`, 26 Nov 2026). The scope is everything since `atlassoc-v0.8.0-rc.1` (`4434b91`).
+
+**Numbers, before (rc.1) and after (rc.2 candidate):**
+
+| Measure | rc.1 | rc.2 candidate | Note |
+|---|---|---|---|
+| Workspace tests (`cargo test --workspace`) | 185 | 284 (+6 in the robustness PR) | updater, download/verify, time zones, test-feed confinement |
+| Update parser fuzz/property tests | – | 6 (random, mutated, pathological; 3 properties) | `crates/core/tests/update_parsers_robustness.rs` |
+| macOS desktop app, 1 h soak, memory (RSS) | – | 162 → 101 MB, last-30-min median 115 MB, falling | `b7527a5`, M1, macOS 27.2.1 |
+| macOS desktop app, 1 h soak, CPU (% of one core) | – | median 37 %; 63–97 % for about 8 min after start, then 30–46 % | the same run |
+| Windows desktop app, 1 h soak | – | Billy, 27 Nov, on `1b52a34` | gate 4a |
+
+**CPU note:** an earlier run on `cbb9b28` held 70–100 % for 30 minutes and recovered on its own. The `b7527a5` run showed only an 8-minute peak after start. Both recover without intervention and memory does not grow. This is recorded as ⚠️ for a targeted look at Realtime arc pacing (PR 146) after RC2. It does not block.
+
+**Unsafe audit:** 31 lines containing `unsafe` were added since rc.1.
+- **FFI entry points** (`saver.rs`, `saver_ffi.rs`, `update_ffi.rs`): every entry point accepts null and documents its `# Safety` contract. Byte and string inputs are length-bounded or checked as UTF-8.
+- **Windows** (`soc_host.rs`, `soc_update.rs`): Win32 calls (`MessageBoxW`, `IsWindow`, menus) only on handles the app created or checked.
+- **Counting allocator:** in `examples/saver_memory.rs` only, never shipped.
+- **Open:** Low finding 6 from part 1, `catch_unwind` missing on some saver FFI entry points. A follow-up; it does not block.
+
+**Dependencies:** webpki-roots 1.0.12 and tao 0.37.3 merged into the candidate (Robert: no old frameworks).
+- The RustSec audit and Dependabot are green.
+- The one open Dependabot alert (glib, medium) is not compiled for any target: `cargo tree -i glib --target <t>` is empty for Windows, macOS (arm64 and x86_64) and Linux. It is only a Linux GTK lockfile entry of tao.
+- `THIRD-PARTY-NOTICES.txt` is regenerated for the new versions.
+
+**Security sub-tasks** (workflow 3a): every RC2 work package ✅ or ⚠️, with no 🚨 open (#101).
+
 ## Still requiring acceptance testing
 
 - MSI installation, upgrade, rollback, user-launched setup and uninstallation on
@@ -211,11 +240,11 @@ No High finding. One Medium, open at 4807d49 and closed for RC2 only if the RC2 
   hardware, offline/resume behavior and extended memory/CPU soak testing.
 - Provider authorization/terms for public distribution. Code licensing does not
   license the upstream feed. No automatic feed-freshness authenticity proof exists.
-- DNS resolution is delegated to the OS and can delay background-worker shutdown.
-  Network connect/read/write operations otherwise have explicit timeouts; do not
-  claim immediate shutdown or zero background traffic after stopping a session.
-- Developer ID/notarization and Windows Authenticode signing are not configured.
-  Published 0.4.0 and development builds remain ad-hoc signed on Mac and unsigned on Windows.
+- DNS resolution is bounded to 5 s and the feed worker stops within 100 ms while DNS is
+  pending (0.8.0-rc.2); a blocked resolver thread may still finish in the background.
+- macOS releases are Developer ID signed and notarised (team 7NXP86HMVH); local
+  development builds are ad-hoc. Windows builds stay unsigned (Robert, 24 Nov 2026); the
+  update path verifies size and SHA-256 against the signed feed instead.
 
 Re-run these checks after dependencies or implementation change. Keep prior
 known-working releases available until the candidate passes platform acceptance.
