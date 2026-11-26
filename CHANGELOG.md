@@ -11,7 +11,7 @@ Scope frozen on 24 November 2026; this entry is completed at the release gate.
 - Stability: the feed worker stops promptly even when DNS is slow.
 - Realtime mode: sampled real observation arcs are spread across incoming batches, with at most one second of visual
   delay; receipt counters and source timestamps remain unchanged.
-- Map: compass and hourly time-zone labels.
+- Map: compass and hourly time-zone labels, each on its zone's meridian; the viewer's own zone shows the real local hour from the system clock (civil time zone and daylight saving time), in gold.
 - Fixes: help links in the Windows and macOS apps point to the public repository.
 - Hardening: dependency audit in CI.
 - Not in this release: Windows code signing.
