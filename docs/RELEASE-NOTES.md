@@ -4,8 +4,9 @@ Pre-release for Windows x64 (unsigned) and macOS 14+. Adds Settings → Updates 
 check, Stable / Release Candidates / Betas channels, and a clear result for every outcome. Download happens only
 after a click and is verified for size and SHA-256; macOS also requires Developer ID, notarization and Gatekeeper.
 The Windows installer opens normally; the macOS app is shown in Finder. Nothing installs silently. Also includes
-prompt feed-worker shutdown with slow DNS, smoother realtime arcs, compass/hourly time-zone labels, corrected help
-links and dependency audit in CI. Windows code signing is not planned.
+prompt feed-worker shutdown with slow DNS, smoother realtime arcs, time-zone labels on their zone's meridian (the
+viewer's own zone shows the real local hour in gold, including daylight saving time), corrected help links,
+webpki-roots 1.0.12 and tao 0.37.3, and a dependency audit in CI. Windows code signing is not possible at present.
 
 Full notes: [RELEASE-0.8.0-rc.2.md](RELEASE-0.8.0-rc.2.md). Known limits: [KNOWN-BUGS.md](KNOWN-BUGS.md).
 

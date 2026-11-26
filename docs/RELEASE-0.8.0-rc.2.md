@@ -1,7 +1,7 @@
 # AtlasSOC Desktop 0.8.0-rc.2 — release candidate 2 (build 16)
 
 **Status: pre-release, not the latest stable.** AtlasSOC Desktop 0.7.0 stays the stable version. This is a release
-candidate for wider testing before 0.8.0. Report problems at <https://github.com/ibert-ai/threat-atlas/issues>
+candidate for wider testing before 0.8.0. Report problems at <https://github.com/Ibert-Iam/threat-atlas/issues>
 (never attach a key or token).
 
 AtlasSOC is free and non-commercial. The data sources are licensed for non-commercial use; see
@@ -20,7 +20,9 @@ AtlasSOC is free and non-commercial. The data sources are licensed for non-comme
 - **Stability:** the feed worker stops promptly even when DNS is slow.
 - **Realtime:** sampled observation arcs are spread across incoming batches with at most one second of visual
   delay; receipt counters and source timestamps are unchanged.
-- **Map:** compass and hourly time-zone labels.
+- **Map:** time-zone labels now sit on their zone's meridian; the viewer's own zone shows the real local hour from
+  the system clock, in gold (civil zone and daylight saving time).
+- **Dependencies:** webpki-roots 1.0.12 (TLS root certificates) and tao 0.37.3 (Windows window layer).
 - **Fixes:** help links point to the public repository.
 - **Hardening:** dependency audit in CI; macOS update checks verify the app’s version, build and notarization; the
   feed generator requires one consistent build for macOS assets.
@@ -57,9 +59,9 @@ The full list is in [KNOWN-BUGS.md](KNOWN-BUGS.md). The main ones:
 
 - Windows is unsigned. Trusted Windows code signing is not possible for us at present: the certificate is paid and
   the open-source programmes declined us; the Certum procedure is kept for reference only.
-- The download/verify path is implemented and unit-tested. A real end-to-end install (feed offer → installer or app
-  replacement) was not completed in WP9 because every run stopped at “available”; it needs a real offer and normal
-  platform acceptance.
+- macOS: download and verification were tested end to end against the official signed feed (real package: size,
+  SHA-256, Developer ID, Gatekeeper; a tampered hash is refused). Windows: the download and installer hand-over are
+  unit-tested, and the installer itself opens in its normal window for the user.
 - macOS platform acceptance for this exact package (Gate 5b) remains a release gate; do not infer it from a prior
   build.
 - Screen-size handling follows the older fixed layout. On small or scaled laptop screens the bottom can be

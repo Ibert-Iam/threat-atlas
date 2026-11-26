@@ -51,8 +51,9 @@ the macOS app is shown in Finder. Nothing installs silently. Windows builds rema
 signing is not possible at present (paid certificate; open-source programmes declined), so SmartScreen or policy may
 warn; do not disable OS protections.
 
-The release also includes prompt feed-worker shutdown with slow DNS, smoother realtime arcs, compass/hourly time-zone
-labels, corrected help links, and a dependency audit in CI. [Release notes](docs/RELEASE-0.8.0-rc.2.md),
+The release also includes prompt feed-worker shutdown with slow DNS, smoother realtime arcs, time-zone labels on
+their zone's meridian (the viewer's own zone shows the real local hour in gold, including daylight saving time),
+corrected help links, webpki-roots 1.0.12 and tao 0.37.3, and a dependency audit in CI. [Release notes](docs/RELEASE-0.8.0-rc.2.md),
 [what is still limited](docs/KNOWN-BUGS.md) and [update channels](docs/UPDATE-CHANNELS.md).
 
 ## AtlasSOC Desktop 0.8.0 release candidate 1 (previous)
