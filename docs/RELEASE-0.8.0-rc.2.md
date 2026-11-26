@@ -34,7 +34,7 @@ AtlasSOC is free and non-commercial. The data sources are licensed for non-comme
 | Platform | File | Signing |
 |---|---|---|
 | Windows 10/11 x64 | `AtlasSOC-Setup-0.8.0-build16.exe` (Just me or Everyone) and portable ZIP | **Unsigned.** SmartScreen or organisational policy may warn or block; do not disable protections. |
-| macOS 14+ (Apple silicon and Intel) | `AtlasSOC-macOS-universal-v0.8.0-rc.2-build16` ZIP | Developer ID signed and notarised when the release page says so for this exact asset. |
+| macOS 14+ (Apple silicon and Intel) | `AtlasSOC-macOS-universal-v0.8.0-rc.2-build16` ZIP | Developer ID signed and notarised (Gatekeeper: *Notarized Developer ID*). |
 
 Linux is not part of this release candidate; the existing 0.7.0 Linux preview is unchanged.
 
@@ -57,13 +57,14 @@ that an address is malicious or that you are affected.
 
 The full list is in [KNOWN-BUGS.md](KNOWN-BUGS.md). The main ones:
 
+- Realtime arcs come in bursts rather than a continuous flow (visual only; the fix is planned for the next version).
+
 - Windows is unsigned. Trusted Windows code signing is not possible for us at present: the certificate is paid and
   the open-source programmes declined us; the Certum procedure is kept for reference only.
 - macOS: download and verification were tested end to end against the official signed feed (real package: size,
   SHA-256, Developer ID, Gatekeeper; a tampered hash is refused). Windows: the download and installer hand-over are
   unit-tested, and the installer itself opens in its normal window for the user.
-- macOS platform acceptance for this exact package (Gate 5b) remains a release gate; do not infer it from a prior
-  build.
+- macOS acceptance passed on this build (Apple silicon). Intel Macs were not tested by hand; the app is universal.
 - Screen-size handling follows the older fixed layout. On small or scaled laptop screens the bottom can be
   cropped; 1920x1080 base scaling and multi-screen are planned, not built.
 - Keyed sources were checked live on macOS with the maintainer’s own keys. Some Windows key-entry paths and other
