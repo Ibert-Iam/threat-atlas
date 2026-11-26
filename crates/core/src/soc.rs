@@ -338,7 +338,11 @@ impl Renderer {
                     36,
                     70,
                     14,
-                    "SECURITY OPERATIONS / GREYNOISE LIVE + CLOUDFLARE RADAR",
+                    if self.saver_identity {
+                        "SCREENSAVER / GREYNOISE LIVE + OPTIONAL OSINT"
+                    } else {
+                        "SECURITY OPERATIONS / GREYNOISE LIVE + CLOUDFLARE RADAR"
+                    },
                     MUTED,
                 );
                 self.text(1044, 225, 15, "LATEST SELECTED RECORDS", INFO);
@@ -353,7 +357,7 @@ impl Renderer {
             35,
             875,
             12,
-            "GREYNOISE: RECEIVED RECORDS, NOT UNIQUE ATTACKS | RADAR: AGGREGATE SHARES | TIMES UTC",
+            if self.saver_identity { "GREYNOISE: RECEIVED RECORDS, NOT UNIQUE ATTACKS | OPTIONAL OSINT: SOURCE CARDS | TIMES UTC" } else { "GREYNOISE: RECEIVED RECORDS, NOT UNIQUE ATTACKS | RADAR: AGGREGATE SHARES | TIMES UTC" },
             MUTED,
         );
         self.desktop_version_label();
@@ -883,7 +887,11 @@ impl SocView {
             1044,
             80,
             13,
-            &format!("GREYNOISE {} | RADAR {}", s.status, radar_label),
+            &if self.options.saver_identity {
+                format!("GREYNOISE {}", s.status)
+            } else {
+                format!("GREYNOISE {} | RADAR {}", s.status, radar_label)
+            },
             INFO,
         );
         let total = self.counts.1;
@@ -962,71 +970,74 @@ impl SocView {
             r.text(1044, 258, 13, "NO SELECTED RECORDS YET", MUTED);
         }
 
-        // Right panel, lower half: Cloudflare Radar rows as supplied (informational).
-        let layer = if self.options.radar_layer {
-            ""
-        } else {
-            " (LAYER OFF)"
-        };
-        r.text(
-            1044,
-            560,
-            15,
-            &format!("CLOUDFLARE RADAR / TOP ROWS{layer}"),
-            INFO,
-        );
-        match radar_data {
-            Some(data) => {
-                for (i, row) in data
-                    .rows
-                    .iter()
-                    .take(if self.intel.is_empty() { 8 } else { 3 })
-                    .enumerate()
-                {
-                    let y = 590 + i as i32 * 26;
-                    let origin: String = row.origin_country_alpha2.trim().chars().take(8).collect();
-                    let target: String = row
-                        .target_country_alpha2
-                        .as_deref()
-                        .map_or("?".into(), |t| t.trim().chars().take(8).collect());
-                    let hidden = !self.options.radar_layer
-                        || self
-                            .options
-                            .radar_hidden
-                            .iter()
-                            .any(|h| h.eq_ignore_ascii_case(&origin));
-                    let note = if hidden { " (HIDDEN)" } else { "" };
+        if !self.options.saver_identity {
+            // Right panel, lower half: Cloudflare Radar rows as supplied (informational).
+            let layer = if self.options.radar_layer {
+                ""
+            } else {
+                " (LAYER OFF)"
+            };
+            r.text(
+                1044,
+                560,
+                15,
+                &format!("CLOUDFLARE RADAR / TOP ROWS{layer}"),
+                INFO,
+            );
+            match radar_data {
+                Some(data) => {
+                    for (i, row) in data
+                        .rows
+                        .iter()
+                        .take(if self.intel.is_empty() { 8 } else { 3 })
+                        .enumerate()
+                    {
+                        let y = 590 + i as i32 * 26;
+                        let origin: String =
+                            row.origin_country_alpha2.trim().chars().take(8).collect();
+                        let target: String = row
+                            .target_country_alpha2
+                            .as_deref()
+                            .map_or("?".into(), |t| t.trim().chars().take(8).collect());
+                        let hidden = !self.options.radar_layer
+                            || self
+                                .options
+                                .radar_hidden
+                                .iter()
+                                .any(|h| h.eq_ignore_ascii_case(&origin));
+                        let note = if hidden { " (HIDDEN)" } else { "" };
+                        r.text(
+                            1044,
+                            y,
+                            12,
+                            &format!("{:>2}. {origin} -> {target}{note}", i + 1),
+                            if hidden { MUTED } else { TEXT },
+                        );
+                        let label: String = data.value_label(i).chars().take(16).collect();
+                        r.text(1290, y, 12, &label, if hidden { MUTED } else { INFO });
+                    }
                     r.text(
                         1044,
-                        y,
-                        12,
-                        &format!("{:>2}. {origin} -> {target}{note}", i + 1),
-                        if hidden { MUTED } else { TEXT },
+                        805,
+                        11,
+                        &format!(
+                            "AGGREGATE, NOT LIVE | {radar_label} | {}",
+                            data.normalization
+                        ),
+                        MUTED,
                     );
-                    let label: String = data.value_label(i).chars().take(16).collect();
-                    r.text(1290, y, 12, &label, if hidden { MUTED } else { INFO });
                 }
-                r.text(
+                None => r.text(
                     1044,
-                    805,
-                    11,
-                    &format!(
-                        "AGGREGATE, NOT LIVE | {radar_label} | {}",
-                        data.normalization
-                    ),
+                    590,
+                    12,
+                    self.options
+                        .radar_note
+                        .as_deref()
+                        .unwrap_or("NO RADAR DATA YET (SEE STATUS IN THE APP)"),
                     MUTED,
-                );
+                ),
             }
-            None => r.text(
-                1044,
-                590,
-                12,
-                self.options
-                    .radar_note
-                    .as_deref()
-                    .unwrap_or("NO RADAR DATA YET (SEE STATUS IN THE APP)"),
-                MUTED,
-            ),
         }
 
         // Live intelligence cards below the Radar rows: one at a time, rotating every few seconds.
@@ -1051,20 +1062,22 @@ impl SocView {
             r.rect(640., y as f32 + 3., 12., 10., *colour, 200);
             r.text(660, y, 12, label, TEXT);
         }
-        for (i, (target, label)) in [(false, "RADAR ORIGIN"), (true, "RADAR TARGET")]
-            .into_iter()
-            .enumerate()
-        {
-            let y = 816 + i as i32 * 18;
-            let icon = Icon {
-                target,
-                at: (646., y as f32 + 8.),
-                size: 6.,
-                label: String::new(),
-                slices: if target { Vec::new() } else { vec![0.65, 0.35] },
-            };
-            draw_icon(&mut r.pix, &icon, 230.);
-            r.text(660, y, 11, label, TEXT);
+        if !self.options.saver_identity {
+            for (i, (target, label)) in [(false, "RADAR ORIGIN"), (true, "RADAR TARGET")]
+                .into_iter()
+                .enumerate()
+            {
+                let y = 816 + i as i32 * 18;
+                let icon = Icon {
+                    target,
+                    at: (646., y as f32 + 8.),
+                    size: 6.,
+                    label: String::new(),
+                    slices: if target { Vec::new() } else { vec![0.65, 0.35] },
+                };
+                draw_icon(&mut r.pix, &icon, 230.);
+                r.text(660, y, 11, label, TEXT);
+            }
         }
         let arcs_note = if self.options.motion == Motion::Realtime {
             "ARCS: <=40/S, <=1S DELAY"
@@ -1074,9 +1087,21 @@ impl SocView {
         for (i, note) in [
             "TINT: TOP CLASS, 5 MIN",
             arcs_note,
-            "PIE AREA = RADAR SHARE",
-            "TARGETS ONLY IF SUPPLIED",
-            "CLICK COUNTRY TO FOCUS",
+            if self.options.saver_identity {
+                "NO CLOUDFLARE RADAR"
+            } else {
+                "PIE AREA = RADAR SHARE"
+            },
+            if self.options.saver_identity {
+                "OSINT: ATLAS SETTINGS"
+            } else {
+                "TARGETS ONLY IF SUPPLIED"
+            },
+            if self.options.saver_identity {
+                "COUNTRY FOCUS ROTATES"
+            } else {
+                "CLICK COUNTRY TO FOCUS"
+            },
         ]
         .iter()
         .enumerate()
