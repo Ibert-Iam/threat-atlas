@@ -30,7 +30,10 @@ signature against the built-in recovery key, with no unsigned fallback, and reje
 feed older than the newest one it already accepted (rollback). It then verifies the
 download's exact size and SHA-256; on macOS it also requires Developer ID, notarization
 and a Gatekeeper pass. Nothing installs without your approval. A local status file records
-the latest result and is not uploaded. Disable update checks in the app settings.
+the latest result and is not uploaded. Only after you click to download an update does the
+app also fetch that package from the GitHub release (`github.com` and its download host).
+The check runs once a day after you accept the licence; to avoid it, block the two
+addresses or do not run the app.
 
 ## AtlasSOC standalone beta
 
