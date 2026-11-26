@@ -15,6 +15,10 @@ $package = Join-Path $PWD 'dist/windows-soc'
 New-Item -ItemType Directory -Force -Path $package | Out-Null
 $targetRoot = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $PWD 'target' }
 Copy-Item -LiteralPath (Join-Path $targetRoot 'x86_64-pc-windows-msvc/release/threat-atlas-soc.exe') -Destination (Join-Path $package 'AtlasSOC.exe')
+# Release guard: the updater test-feed switch (Cargo feature test-feed, WP9) must never be in a package.
+if (Select-String -LiteralPath (Join-Path $package 'AtlasSOC.exe') -Pattern 'ATLAS_TEST_FEED_PATH' -SimpleMatch -Quiet) {
+  throw 'Refusing: AtlasSOC.exe contains the updater test-feed switch; build without the test-feed feature.'
+}
 Copy-Item -LiteralPath 'docs/WINDOWS-SOC.md','docs/ATLAS-SOC-BETA.md','LICENSE','PRIVACY.md','THIRD-PARTY-NOTICES.txt','docs/CLOUDFLARE-LICENSE.json' -Destination $package
 # Customer token guide as read-only HTML, opened by right-click > How to get a token...
 & $Python scripts/render-token-guide.py docs/CLOUDFLARE-RADAR-TOKEN-GUIDE.md (Join-Path $package 'Cloudflare-Radar-Token-Guide.html')

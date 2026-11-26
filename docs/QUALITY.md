@@ -190,8 +190,9 @@ No High finding. One Medium, open at 4807d49 and closed for RC2 only if the RC2 
 - #156 closes findings 1 and 2. #157 is stacked on #152 and #156 and contains the same Windows change, so #156
   should merge first and #157 then reduces to its macOS part.
 - #155 adds a `test-feed` Cargo feature that reads a test trust root and feed path from the environment. It is
-  safe only while release builds never enable that feature; a CI check that release artefacts are built without
-  it is recommended.
+  safe only while release builds never enable that feature. The switch now lives in the core
+  (`update_test_feed.rs`) and serves macOS too; `private-beta/cloudflare-macos/build.sh` and
+  `scripts/build-windows-soc.ps1` refuse to package a binary that contains it.
 - #143 and #159 change `update_check.rs` and add the signing tool and the daily feed check; #152 adds the macOS
   update FFI (`update_ffi.rs`) that #157 extends. These are outside part 1 and need their own review before
   merge.

@@ -8,8 +8,28 @@ import AppKit
 final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate {
     static let shared = UpdateController()
 
-    static let feedURL = URL(string: "https://raw.githubusercontent.com/Ibert-Iam/threat-atlas/update-feed/feed.json")!
-    static let signatureURL = URL(string: "https://raw.githubusercontent.com/Ibert-Iam/threat-atlas/update-feed/feed.json.sig")!
+    static let officialFeedURL = URL(string: "https://raw.githubusercontent.com/Ibert-Iam/threat-atlas/update-feed/feed.json")!
+    static let officialSignatureURL = URL(string: "https://raw.githubusercontent.com/Ibert-Iam/threat-atlas/update-feed/feed.json.sig")!
+    /// The feed this build reads, as the core decides it (`ta_update_source`): always the official feed,
+    /// except in a `test-feed` build (updater tests, WP9) given ATLAS_TEST_FEED_PATH and ATLAS_TEST_ROOT.
+    /// Anything unexpected from the core falls back to the official feed.
+    static let source: (feed: URL, signature: URL, test: Bool) = {
+        let official = (officialFeedURL, officialSignatureURL, false)
+        let needed = ta_update_source(nil, 0)
+        guard needed > 0, needed <= 4096 else { return official }
+        var buffer = [UInt8](repeating: 0, count: needed)
+        guard ta_update_source(&buffer, needed) == needed,
+              let json = try? JSONSerialization.jsonObject(with: Data(buffer)) as? [String: Any],
+              let feedText = json["feed"] as? String, let signatureText = json["signature"] as? String,
+              let feed = URL(string: feedText), let signature = URL(string: signatureText),
+              feed.scheme == "https", signature.scheme == "https",
+              feed.host == officialFeedURL.host, signature.host == officialFeedURL.host else { return official }
+        return (feed, signature, (json["test"] as? Bool) ?? false)
+    }()
+    static var feedURL: URL { source.feed }
+    static var signatureURL: URL { source.signature }
+    /// True only in a test-feed build reading a test feed; Settings then says so on its first line.
+    static var testFeed: Bool { source.test }
     static let maxFeedBytes = 1_000_000
     static let maxSignatureBytes = 256
     static let channelKey = "AtlasSOC.UpdateChannel"
@@ -80,7 +100,8 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
         let base = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("ThreatAtlasPrivateRadar", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
-        stateURL = base.appendingPathComponent("update-check.json")
+        // A test feed keeps its own state, so it never moves a real installation's rollback mark.
+        stateURL = base.appendingPathComponent(Self.testFeed && directory == nil ? "update-check-test.json" : "update-check.json")
         updatesURL = base.appendingPathComponent("updates", isDirectory: true)
         ownFolder = Self.downloadFolder(of: bundle, in: updatesURL).flatMap(FolderLock.init)
         Self.cleanUp(updatesURL)
@@ -408,6 +429,7 @@ final class UpdateController: NSObject, ObservableObject, URLSessionTaskDelegate
     /// The lines Settings shows: result, then last check (and last success after a failure).
     var lines: [String] {
         var out = [checking ? "Checking for updates…" : (response?.text ?? "Not checked yet")]
+        if Self.testFeed { out.insert("TEST FEED: \(Self.feedURL.path)", at: 0) }
         out.append("Last check: " + Self.short(state["last_check"] as? String))
         switch download {
         case .idle: break
