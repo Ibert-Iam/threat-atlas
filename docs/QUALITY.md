@@ -200,6 +200,9 @@ No High finding. One Medium, open at 4807d49 and closed for RC2 only if the RC2 
 
 ## Hardening round for 0.8.0-rc.2 (Gate 3)
 
+Released as **AtlasSOC 0.8.0 stable, build 17** on 26 November 2026: the same code as candidate `1b52a34`, with only the
+version identity, the help-link tag and docs changed.
+
 Candidate `1b52a34` (threat-atlas `main`, 26 Nov 2026). The scope is everything since `atlassoc-v0.8.0-rc.1` (`4434b91`).
 
 **Numbers, before (rc.1) and after (rc.2 candidate):**

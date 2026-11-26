@@ -1,4 +1,4 @@
-> **AtlasSOC Desktop:** Windows x64 and universal macOS 14+ packages are documented in [docs/ATLAS-SOC-BETA.md](docs/ATLAS-SOC-BETA.md); the 0.8.0 release candidate is described below. This is separate from the screensaver; Windows is unsigned and both platforms have hardware limits. A separate [Linux x86_64 preview](docs/ATLAS-SOC-LINUX.md) (0.7.0) is available without Cloudflare Radar.
+> **AtlasSOC Desktop:** Windows x64 and universal macOS 14+ packages are documented in [docs/ATLAS-SOC-BETA.md](docs/ATLAS-SOC-BETA.md); the stable 0.8.0 release is described below. This is separate from the screensaver; Windows is unsigned and both platforms have hardware limits. A separate [Linux x86_64 preview](docs/ATLAS-SOC-LINUX.md) (0.7.0) is available without Cloudflare Radar.
 
 # Threat Atlas SOC
 
@@ -38,9 +38,9 @@ screenshot thumbnails. These historical packages predate the signed feed; curren
 Manual platform acceptance remains incomplete; see docs/QUALITY.md.
 See [release/version handling](docs/RELEASING.md) and [change history](CHANGELOG.md).
 
-## AtlasSOC Desktop 0.8.0 release candidate 2
+## AtlasSOC Desktop 0.8.0 (stable)
 
-**AtlasSOC Desktop 0.8.0-rc.2** (build 16) is the current pre-release for Windows x64 (unsigned) and macOS 14+. It
+**AtlasSOC Desktop 0.8.0** (build 17) is the current stable release for Windows x64 (unsigned) and macOS 14+ (Developer ID signed and notarised). It
 keeps the 13 optional OSINT sources and adds a real **Settings → Updates** view: a daily check of the signed update
 feed (Ed25519, offline recovery key with a delegated signer), channels Stable / Release Candidates / Betas, and a
 clear result for every outcome. A failed check is never shown as "up to date".
@@ -99,7 +99,7 @@ If an upgrade shows a blank **Threat Atlas** preview, check that you selected
 `/Library/Screen Savers`; back them up before removing duplicates. The new bundle
 uses a distinct class/identifier and includes screenshot thumbnails. Reopen
 System Settings after installing. These historical packages predate the signed feed; see
-Automatic updates below for RC2 behaviour.
+Automatic updates below for 0.8.0 behaviour.
 
 Current Windows packages are unsigned; the 0.4.8 macOS package is Developer ID
 signed, notarized and stapled. Historical ad-hoc packages remain unchanged.
@@ -108,7 +108,7 @@ OS security protections to run an untrusted download.
 
 ## Automatic updates
 
-AtlasSOC Desktop RC2 checks the signed update feed from **Settings → Updates** on Windows and macOS. The feed is a
+AtlasSOC Desktop 0.8.0 checks the signed update feed from **Settings → Updates** on Windows and macOS. The feed is a
 pointer, not an authorisation: the app verifies its detached Ed25519 signature (offline recovery key with an expiring
 delegated signing key), then the channel (Stable, Release Candidates or Betas), then the exact size and SHA-256 of the
 download. On macOS it also requires Developer ID, notarization and Gatekeeper. A failed check keeps the installed

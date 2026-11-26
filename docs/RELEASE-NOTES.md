@@ -1,6 +1,6 @@
-# AtlasSOC Desktop 0.8.0-rc.2 — Release Candidate 2 (build 16)
+# AtlasSOC Desktop 0.8.0 — stable (build 17)
 
-Pre-release for Windows x64 (unsigned) and macOS 14+. Adds Settings → Updates on both platforms: a signed-feed
+Stable release for Windows x64 (unsigned) and macOS 14+ (Developer ID signed and notarised); the tested 0.8.0-rc.2 code. Adds Settings → Updates on both platforms: a signed-feed
 check, Stable / Release Candidates / Betas channels, and a clear result for every outcome. Download happens only
 after a click and is verified for size and SHA-256; macOS also requires Developer ID, notarization and Gatekeeper.
 The Windows installer opens normally; the macOS app is shown in Finder. Nothing installs silently. Also includes
