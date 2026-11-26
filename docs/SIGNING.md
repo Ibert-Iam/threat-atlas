@@ -2,10 +2,12 @@
 
 ## Current project status
 
-Windows artifacts are unsigned by owner decision of 24 November 2026. Trusted Windows code signing is not planned
-for AtlasSOC RC2 or a later version, and no alternative signing route is proposed. Windows SmartScreen or
-organisational policy may warn or block an unsigned download; do not disable OS security protections. A matching
-SHA-256 proves agreement with the published file, not a trusted publisher identity.
+Windows artifacts are unsigned. Trusted Windows code signing is not possible for us at present: the certificate is a
+paid product we cannot fund, and the open-source signing programmes declined us (too small, or the Ko-fi payment
+link ruled us out). The Certum procedure is kept for reference for the day funding exists; no other signing route
+is proposed. Windows SmartScreen or organisational policy may warn or block an unsigned download; do not disable OS
+security protections. A matching SHA-256 proves agreement with the published file, not a trusted publisher
+identity.
 
 macOS bundles are Developer ID signed when the release page says so. Never treat stable status as a substitute for
 the signature stated on the exact asset.

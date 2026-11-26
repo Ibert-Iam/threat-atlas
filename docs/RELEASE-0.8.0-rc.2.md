@@ -55,7 +55,11 @@ that an address is malicious or that you are affected.
 
 The full list is in [KNOWN-BUGS.md](KNOWN-BUGS.md). The main ones:
 
-- Windows is unsigned; no trusted Windows signing route is planned.
+- Windows is unsigned. Trusted Windows code signing is not possible for us at present: the certificate is paid and
+  the open-source programmes declined us; the Certum procedure is kept for reference only.
+- The download/verify path is implemented and unit-tested. A real end-to-end install (feed offer → installer or app
+  replacement) was not completed in WP9 because every run stopped at “available”; it needs a real offer and normal
+  platform acceptance.
 - macOS platform acceptance for this exact package (Gate 5b) remains a release gate; do not infer it from a prior
   build.
 - Screen-size handling follows the older fixed layout. On small or scaled laptop screens the bottom can be
