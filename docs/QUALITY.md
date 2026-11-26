@@ -210,7 +210,9 @@ Candidate `1b52a34` (threat-atlas `main`, 26 Nov 2026). The scope is everything 
 | Update parser fuzz/property tests | – | 6 (random, mutated, pathological; 3 properties) | `crates/core/tests/update_parsers_robustness.rs` |
 | macOS desktop app, 1 h soak, memory (RSS) | – | 162 → 101 MB, last-30-min median 115 MB, falling | `b7527a5`, M1, macOS 27.2.1 |
 | macOS desktop app, 1 h soak, CPU (% of one core) | – | median 37 %; 63–97 % for about 8 min after start, then 30–46 % | the same run |
-| Windows desktop app, 1 h soak | – | Billy, 27 Nov, on `1b52a34` | gate 4a |
+| Windows desktop app, soak (private memory) | – | peak 51.7 MB, stable, single instance; run cut short and passed on Robert's (owner) order, 26 Nov | `b7527a5`, Windows 11 Pro 26300; memory rule: never over 100 MB, under 70 MB fine, ~55 MB average |
+
+**Windows note:** the Windows soak and acceptance ran on Billy's build of `b7527a5`. The release commit adds only tao 0.37.3, webpki-roots 1.0.12 and docs. CI on the release commit runs the Windows offline launch test and the installer install/upgrade/uninstall test on its own Windows build. Not run by hand: the menus (no input injection on the test host), an upgrade from the RC1 package, and Windows 10.
 
 **CPU note:** an earlier run on `cbb9b28` held 70–100 % for 30 minutes and recovered on its own. The `b7527a5` run showed only an 8-minute peak after start. Both recover without intervention and memory does not grow. This is recorded as ⚠️ for a targeted look at Realtime arc pacing (PR 146) after RC2. It does not block.
 
