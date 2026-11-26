@@ -1,5 +1,21 @@
 # Windows installation and troubleshooting
 
+## AtlasSOC Desktop 0.8.0-rc.2 (standalone app, build 16)
+
+This is a separate product from the screensaver. The Windows installer is **unsigned** and may trigger SmartScreen
+or organisational policy; do not disable protections. Verify the published SHA-256 before running it.
+
+1. Run `AtlasSOC-Setup-0.8.0-build16.exe` and choose **Just me** (no elevation) or **Everyone** (UAC). The installer
+   upgrades an earlier AtlasSOC install in the same scope.
+2. Open AtlasSOC and use **Settings → Updates**. Choose Stable, Release Candidates or Betas; the daily check uses
+   the signed feed.
+3. When an update is offered, click download. The app verifies the exact size and SHA-256, then opens the normal
+   installer window. Nothing installs silently and UAC still appears for an all-users install.
+
+The portable ZIP has no installer; replace the extracted folder after keeping a working copy. Settings stay in the
+user profile. The RC2 update path does not replace the screensaver updater or change its trust rules.
+
+
 Applies to the unsigned 0.4.5 stable installer; Windows 10/11 x64 only. Windows 10/11 x64 only.
 
 **Windows MSI temporarily withdrawn:** the current beta's MSI download is unavailable while installation-path/integration behavior is investigated. The SCR executable is not established to be defective. The standalone Windows ZIP remains available for manual evaluation. Do not treat the MSI steps below as a currently available download; they document the corrected all-users installer, published as 0.4.5 after exact-version checks. The withdrawn 0.4.2-rc.1 MSI was per-user and installed under `%LOCALAPPDATA%\ThreatAtlas`.

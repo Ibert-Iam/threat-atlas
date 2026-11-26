@@ -72,12 +72,12 @@ stable; 0.7.0 stays stable.
 
 The numeric version must advance when the Windows installer payload changes (see `RELEASING.md`). Planned, not built:
 the 1920x1080 base scaling (SOC-RESOLUTIONS.md), a multi-screen option, a ransomware-by-country map layer, Tor map
-layer, trusted Windows code signing (Certum order of 14 November 2026), and the wishlist items below.
+layer, and the wishlist items below.
 
 ### Other planned changes
 
-- Trusted Windows code signing (Certum Open Source certificate ordered 14 November 2026, owner verification
-  pending). Signed packages are a new version, not a replacement of 0.4.8.
+- Windows builds remain unsigned. Trusted Windows code signing was dropped by the owner on 24 November 2026 and is
+  not planned for RC2 or a later version; no alternative signing route is proposed.
 - The optimisation and hardening round (see the release gates).
 - More languages in the applications (ATLAS-I18N-001), Radar in the screensaver settings (ATLAS-SAVER-RADAR-001),
   Zero Wire security briefings (ATLAS-SOC-SOURCE-002): wishlist items, not scheduled.

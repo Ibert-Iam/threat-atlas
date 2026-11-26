@@ -2,41 +2,13 @@
 
 ## Current project status
 
-Official 0.4.0 was published without trusted signing. Windows artifacts are
-unsigned; macOS bundles are ad-hoc signed and not notarized. Stable release
-status does not mean a verified publisher signature. Certificate acquisition
-and signing work are on hold. Keep updater signature verification enabled;
-unsigned releases cannot establish trusted automatic updating.
+Windows artifacts are unsigned by owner decision of 24 November 2026. Trusted Windows code signing is not planned
+for AtlasSOC RC2 or a later version, and no alternative signing route is proposed. Windows SmartScreen or
+organisational policy may warn or block an unsigned download; do not disable OS security protections. A matching
+SHA-256 proves agreement with the published file, not a trusted publisher identity.
 
-Let's Encrypt issues TLS certificates, not code-signing certificates:
-https://letsencrypt.org/docs/faq/
-
-## Windows
-Use a publicly trusted Authenticode identity with a hardware/cloud protected key.
-For an eligible open-source project, apply to https://signpath.org/ (acceptance is
-required; the service holds the signing key). A certificate alone is not the whole
-cost: token/cloud storage and signing subscriptions may be additional charges.
-Azure Artifact Signing currently accepts EU organizations but individual applicants
-only in the US/Canada. Check eligibility before buying anything.
-
-Certum Open Source Code Signing in the Cloud (SimplySign) is the paid option chosen for this
-project; the procedure is in [SIGNING-CERTUM.md](SIGNING-CERTUM.md).
-
-Certificate-store/token workflow on Windows:
-1. Build SCR with scripts/build-windows.ps1.
-2. Sign dist/ThreatAtlas.scr with scripts/sign-windows.ps1 -Thumbprint YOUR_THUMBPRINT -File dist/ThreatAtlas.scr.
-3. Build MSI using scripts/build-msi.sh on Linux/macOS with msitools/wixl.
-4. Sign the versioned MSI in dist/ (name from scripts/version.py --msi-name) on Windows with the same script.
-5. Verify both signatures and test the final MSI on a fresh Windows account.
-For a cloud service such as SignPath/Azure, insert the provider's signing step at
-steps 2 and 4. Azure needs its client tools/dlib and account metadata; the generic
-certificate-store script alone does not implement Azure signing.
-
-For GitHub Actions, use a protected release environment and short-lived federated
-credentials where supported. Never give pull-request builds signing access.
-Timestamp every signature. Signing does not promise immediate SmartScreen reputation.
-A self-signed certificate is useful for a controlled lab; it is not publicly trusted.
-Do not ask users to disable Windows security protections to install a release.
+macOS bundles are Developer ID signed when the release page says so. Never treat stable status as a substitute for
+the signature stated on the exact asset.
 
 ## macOS
 An Apple Developer Program account and Developer ID Application certificate with
@@ -58,12 +30,9 @@ stapled app/DMG/PKG as appropriate. Test screensaver-host loading as well as the
 ## AtlasSOC Desktop (standalone app)
 Same identities as above. macOS: `MACOS_SIGN_IDENTITY="Developer ID Application: ..." private-beta/cloudflare-macos/build.sh`
 signs with hardened runtime and a timestamp; adding `MACOS_NOTARY_PROFILE=<profile>` also
-notarizes and staples the app. Windows: set `ATLAS_SIGN_THUMBPRINT` before
-`scripts/build-windows-soc.ps1` to sign `AtlasSOC.exe` through `scripts/sign-windows.ps1`; the
-package manifest then records `signature: authenticode`. Without these the builds stay
-ad-hoc (Mac) and unsigned (Windows), as disclosed in the release notes.
+notarizes and staples the app. Windows builds stay unsigned: no Authenticode step is configured,
+and the release notes disclose that. Do not describe an unsigned build as publisher-verified.
 
 References:
 - https://developer.apple.com/help/account/certificates/create-developer-id-certificates/
 - https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution
-- https://learn.microsoft.com/en-us/azure/artifact-signing/quickstart
