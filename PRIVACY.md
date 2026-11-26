@@ -22,13 +22,15 @@ privacy policy. Signing providers process release artifacts and maintainer accou
 information under their own policies. This policy does not claim that third-party
 services collect no data. Changes to network behavior should update this policy.
 
-If you enable automatic updates, a separate per-user background task checks the
-public GitHub releases API at login/daily (macOS) or daily while signed in
-(Windows). It downloads stable updates from GitHub and its release-asset CDN over
-HTTPS, verifies publisher code signatures locally, and installs them. GitHub/CDN
-operators receive your IP address and normal request metadata. No account/token
-is sent. A local status file records the latest result; it is not uploaded.
-Disable updates from the preview app menu (macOS) or Start Menu (Windows).
+When update checks are enabled, the app sends exactly two HTTPS GET requests, only to
+`raw.githubusercontent.com` on the public GitHub repository: `feed.json` and
+`feed.json.sig`. It sends no account, token, identifier or telemetry; GitHub sees the
+request IP address and normal request metadata. The app verifies the detached Ed25519
+signature against the built-in recovery key, with no unsigned fallback, and rejects a
+feed older than the newest one it already accepted (rollback). It then verifies the
+download's exact size and SHA-256; on macOS it also requires Developer ID, notarization
+and a Gatekeeper pass. Nothing installs without your approval. A local status file records
+the latest result and is not uploaded. Disable update checks in the app settings.
 
 ## AtlasSOC standalone beta
 
