@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-26T08:00:33Z",
+  "generated_at": "2026-11-26T08:30:26Z",
   "project": {
     "name": "Threat Atlas",
     "repository_url": "https://github.com/Ibert-Iam/threat-atlas"
@@ -134,7 +134,7 @@
       "id": "cl",
       "name": "Jean-Claude Van Damme",
       "role": "CBO, Chief Bot Officer (Claude)",
-      "last_seen_at": "2026-11-26T08:00:03Z",
+      "last_seen_at": "2026-11-26T08:30:06Z",
       "state": "working",
       "credits": "ok",
       "credits_checked_at": "2026-11-26T06:33:43Z",
@@ -148,7 +148,7 @@
       "id": "mac",
       "name": "MacGyver",
       "role": "Crew (Codex)",
-      "last_seen_at": "2026-11-26T08:00:08Z",
+      "last_seen_at": "2026-11-26T08:30:11Z",
       "state": "idle",
       "credits": "empty",
       "credits_checked_at": "2026-11-26T08:00:05Z",
@@ -162,7 +162,7 @@
       "id": "noris",
       "name": "Seek Norris",
       "role": "CMO, Chief Marketing Officer (DeepSeek)",
-      "last_seen_at": "2026-11-26T08:00:19Z",
+      "last_seen_at": "2026-11-26T08:30:16Z",
       "state": "working",
       "credits": "ok",
       "credits_checked_at": "2026-11-26T08:00:19Z",
@@ -177,13 +177,13 @@
       "id": "billy",
       "name": "Billy Badass",
       "role": "Crew (DeepSeek)",
-      "last_seen_at": "2026-11-26T08:00:03Z",
+      "last_seen_at": "2026-11-26T08:30:03Z",
       "state": "working",
       "credits": "ok",
-      "credits_checked_at": "2026-11-26T06:05:03Z",
+      "credits_checked_at": "2026-11-26T08:05:01Z",
       "credits_reading": {
         "kind": "usd",
-        "value": 6.13,
+        "value": 6.12,
         "full": 50.0
       },
       "source": "status"
