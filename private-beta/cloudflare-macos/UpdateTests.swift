@@ -149,6 +149,12 @@ import Foundation
     }
 
     static func main() async throws {
+        // Without ATLAS_TEST_FEED_PATH (and in every release build) the core names the official feed.
+        if ProcessInfo.processInfo.environment["ATLAS_TEST_FEED_PATH"] == nil {
+            check(UpdateController.feedURL == UpdateController.officialFeedURL
+                  && UpdateController.signatureURL == UpdateController.officialSignatureURL
+                  && !UpdateController.testFeed, "default source is the official signed feed")
+        }
 
         let base: [String: Any] = ["product": "atlassoc", "version": "0.8.0-rc.1", "build": 15, "channel": "rc",
                                    "platform": "macos-universal", "kind": "portable", "now": 1_795_435_200]
@@ -184,7 +190,12 @@ import Foundation
 
         // Download step: the app check (Developer ID team + Gatekeeper) and the core package check.
         let id = "dev.threatatlas.private.radar"
-        let official = URL(fileURLWithPath: "/Applications/AtlasSOC.app")
+        // An installed official (Developer ID, notarised) copy; ATLAS_TEST_OFFICIAL_APP points elsewhere when
+        // /Applications holds a local build, which checkApp rightly refuses.
+        let official = URL(fileURLWithPath: ProcessInfo.processInfo.environment["ATLAS_TEST_OFFICIAL_APP"] ?? "/Applications/AtlasSOC.app")
+        if !FileManager.default.fileExists(atPath: official.path) {
+            print("SKIP the official-app check: no official copy at \(official.path)")
+        }
         if FileManager.default.fileExists(atPath: official.path) {
             let info = NSDictionary(contentsOf: official.appendingPathComponent("Contents/Info.plist"))!
             let version = info["CFBundleShortVersionString"] as! String, build = UInt32(info["CFBundleVersion"] as! String)!
