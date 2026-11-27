@@ -144,6 +144,8 @@ pub struct Renderer {
     local_location: Option<(f64, f64)>,
     /// The SOC frame is painted for the screensaver: no "SOC DESKTOP" badge and the saver's own version.
     pub(crate) saver_identity: bool,
+    /// Web page (GreyNoise only): no Radar wording in the static frame.
+    pub(crate) web_mode: bool,
 }
 /// Column boundary between the map and the right-hand panels in the 1440x900 layout.
 pub(crate) const WIDE_SPLIT: f32 = 1015.;
@@ -262,6 +264,7 @@ impl Renderer {
             pal,
             local_location: None,
             saver_identity: false,
+            web_mode: false,
         }
     }
     /// Frame x for a layout x: right-hand column shifted in a wide SOC frame.

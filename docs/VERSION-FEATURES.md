@@ -68,16 +68,37 @@ stable; 0.7.0 stays stable.
 | 012 | Spamhaus DROP | no | included |
 | 013 | Phishing.Database (replaces PhishTank) | no | included |
 
+## AtlasSOC Desktop 0.8.0 (build 17, stable, 26 November 2026)
+
+Published as stable from the tested 0.8.0-rc.2 code; rc.2 was not published separately. Both public-release gates are
+met: the hardening round and new tests, and documentation for every new feature (evidence in QUALITY.md).
+
+- **Settings → Updates** on Windows and macOS: signed update feed (Ed25519; offline recovery key with a delegated
+  signer), channels Stable / Release Candidates / Betas, and a clear result for every outcome.
+- **Download and verify:** the installer or app named in the signed feed is downloaded only after a click and checked
+  for exact size and SHA-256; macOS additionally requires Developer ID, notarization and a Gatekeeper pass. Nothing
+  installs silently.
+- **Stability:** feed-worker shutdown is prompt when DNS is slow.
+- **Realtime:** sampled observation arcs are spread across incoming batches with at most one second of visual delay;
+  receipt counters and source timestamps are unchanged.
+- **Map:** compass and hourly time-zone labels.
+- **macOS:** the update check verifies the app’s version, build and notarization.
+- **Windows:** packages remain unsigned. Trusted Windows code signing is not possible for us at present: the
+  certificate is a paid product we cannot fund, and the open-source signing programmes declined us (too small, or
+  the Ko-fi payment link ruled us out). The Certum procedure is retained for reference if funding exists later; no
+  other signing route is proposed.
+
 ## Next version (not yet assigned a number, not released)
 
 The numeric version must advance when the Windows installer payload changes (see `RELEASING.md`). Planned, not built:
 the 1920x1080 base scaling (SOC-RESOLUTIONS.md), a multi-screen option, a ransomware-by-country map layer, Tor map
-layer, trusted Windows code signing (Certum order of 14 November 2026), and the wishlist items below.
+layer, and the wishlist items below.
 
 ### Other planned changes
 
-- Trusted Windows code signing (Certum Open Source certificate ordered 14 November 2026, owner verification
-  pending). Signed packages are a new version, not a replacement of 0.4.8.
+- Windows builds remain unsigned. Trusted Windows code signing is not possible at present: the certificate is a
+  paid product we cannot fund, and the open-source signing programmes declined us. The Certum procedure is kept for
+  reference if funding exists later; no other signing route is proposed.
 - The optimisation and hardening round (see the release gates).
 - More languages in the applications (ATLAS-I18N-001), Radar in the screensaver settings (ATLAS-SAVER-RADAR-001),
   Zero Wire security briefings (ATLAS-SOC-SOURCE-002): wishlist items, not scheduled.
