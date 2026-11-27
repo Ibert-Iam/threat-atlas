@@ -663,7 +663,7 @@ fn require_source(
 fn open_key_guide(window: &Window) {
     open_url(
         window,
-        "https://github.com/Ibert-Iam/threat-atlas/blob/atlassoc-v0.8.0-rc.2/docs/OSINT-API-KEYS.md",
+        "https://github.com/Ibert-Iam/threat-atlas/blob/atlassoc-v0.8.0/docs/OSINT-API-KEYS.md",
     );
 }
 
@@ -673,7 +673,7 @@ const SUPPORT_URL: &str = "https://ko-fi.com/threatatlas";
 fn open_ai_guide(window: &Window) {
     open_url(
         window,
-        "https://github.com/Ibert-Iam/threat-atlas/blob/atlassoc-v0.8.0-rc.2/docs/OSINT-API-KEYS.md#ai-guide",
+        "https://github.com/Ibert-Iam/threat-atlas/blob/atlassoc-v0.8.0/docs/OSINT-API-KEYS.md#ai-guide",
     );
 }
 
@@ -684,7 +684,7 @@ fn open_support_page(window: &Window) {
 fn open_support_info(window: &Window) {
     open_url(
         window,
-        "https://github.com/Ibert-Iam/threat-atlas/blob/atlassoc-v0.8.0-rc.2/docs/SUPPORT.md",
+        "https://github.com/Ibert-Iam/threat-atlas/blob/atlassoc-v0.8.0/docs/SUPPORT.md",
     );
 }
 
@@ -1069,7 +1069,7 @@ fn open_token_guide(window: &Window) {
         })
         .filter(|path| path.is_file());
     let target = local.map_or_else(
-        || "https://github.com/Ibert-Iam/threat-atlas/blob/atlassoc-v0.8.0-rc.2/docs/CLOUDFLARE-RADAR-TOKEN-GUIDE.md".to_string(),
+        || "https://github.com/Ibert-Iam/threat-atlas/blob/atlassoc-v0.8.0/docs/CLOUDFLARE-RADAR-TOKEN-GUIDE.md".to_string(),
         |path| path.display().to_string(),
     );
     unsafe {

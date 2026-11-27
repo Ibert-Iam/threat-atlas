@@ -10,7 +10,8 @@ Historical version-specific observations below are retained; no unverified issue
 ## Current release limits
 
 - Screensaver 0.4.8 and Desktop 0.7.0 macOS downloads are Developer ID signed, notarized and stapled according to the published release records. Their assets are listed on GitHub; this documentation pass did not repeat signature or Gatekeeper tests.
-- Windows packages remain unsigned. The screensaver has an all-users MSI and ZIP; Desktop has a Just me / Everyone installer and portable ZIP. Automated installer checks are distinct from physical install/upgrade acceptance.
+- Windows packages remain unsigned. The screensaver has an all-users MSI and ZIP; Desktop has a Just me / Everyone installer and portable ZIP. Trusted Windows code signing is not planned; SmartScreen or policy may warn. Automated installer checks are distinct from physical install/upgrade acceptance.
+- AtlasSOC 0.8.0 (build 17) is the current stable release; it is the rc.2 code, and its exact limits are in the rc.2 section below and in [RELEASE-0.8.0-rc.2.md](RELEASE-0.8.0-rc.2.md).
 - Windows panorama supports two matching side-by-side displays. Mixed DPI/resolution, hot-plug, physical 150/200% scaling and physical ultrawide acceptance remain incomplete.
 - Desktop's beta.2 F11 fullscreen report has not been re-verified on stable 0.7.0. Do not infer resolution from the existence of an F11 command.
 - Intel Mac hardware remains untested; Rosetta results are not physical Intel acceptance.
@@ -23,13 +24,23 @@ The distribution and Windows troubleshooting sections below describe 0.4.0,
 0.4.1-rc.1 and 0.4.2-rc.1 unless stated otherwise. They do not describe current
 macOS trust or withdraw the current 0.4.8 Windows MSI.
 
+## AtlasSOC Desktop 0.8.0 (build 17, stable; the 0.8.0-rc.2 code)
+
+Stable release (the tested 0.8.0-rc.2 code). Windows is unsigned; trusted Windows code signing is not planned. The Settings → Updates view and
+the signed feed replace the old release-page-only button. The macOS release asset is Developer ID signed and notarised;
+macOS and Windows acceptance passed (see QUALITY.md). The full list is in the rc.1 table below; the fixed rows are marked.
+
+Known in 0.8.0 (fix planned for the next version):
+- **Realtime arcs come in bursts.** Each GreyNoise batch is drawn within about one second, so when batches arrive every few seconds the arcs pulse instead of flowing. Counters and data are not affected. The fix spreads each batch over the measured interval between batches.
+- **Settings → Updates on macOS** can show "Not checked yet" next to an earlier "Last check" time until the first check of the session. Cosmetic.
+
 ## AtlasSOC Desktop 0.8.0-rc.1 (build 15)
 
 Release candidate. These are the known limits of this build, not a claim that no other bugs exist.
 
 | Area | Limitation / expected behavior | Status |
 |---|---|---|
-| Windows signing | Windows packages are unsigned and may trigger SmartScreen or organisational policy. Do not disable protections. | Expected; code signing is a later version. |
+| Windows signing | Windows packages are unsigned and may trigger SmartScreen or organisational policy. Do not disable protections. | Expected; trusted Windows signing is not planned. |
 | Small and scaled screens | The layout is the older fixed 1440x900 design that only grows in width. On small or scaled laptop screens (for example 1920x1080 at 125 %) the bottom of the window can be cropped. | Known. The 1920x1080 base scaling is designed in SOC-RESOLUTIONS.md and not built yet. Workaround: use fullscreen (F11) or a larger window. |
 | Multiple screens | There is no option yet to span or mirror the SOC view over several screens. | Planned. |
 | Windows testing | Install, upgrade, the menus, OTX and abuse.ch key entry in Credential Manager (save, restart, remove) and a 74-minute soak were checked on physical PCs. AbuseIPDB and SSLMate key entry on Windows, other Windows versions and long soaks were not. | See QUALITY.md. |
@@ -41,14 +52,14 @@ Release candidate. These are the known limits of this build, not a claim that no
 | AI help prompt | The prompt was tested with Claude models only (including one simulating a small model), never with a real Hugging Face, DeepSeek or local model, and not against live provider pages. Assistants can be wrong; the guide and your screen win. | Disclosed. |
 | Spamhaus naming | The DROP terms forbid using the Spamhaus name in marketing/promotional material. Product docs and the in-app label may name it factually. | Marketing restriction. |
 | Not included | Team Cymru ASN, MaxMind GeoLite2 file reading and RIPE RIS/BGPStream are not in this release. | Not in scope. |
-| macOS Settings text | Settings → Updates still says "This beta is not Developer ID signed yet", although this macOS build is Developer ID signed and notarised. The text is wrong, not the signature. | Fixed in source for the next version (wording from MAC, #50); released builds up to 0.8.0-rc.1 still show the old text. |
-| Updates | There is no automatic update and no channel choice (Stable, Release Candidates, Betas) in AtlasSOC Desktop yet; Settings → Updates only opens the GitHub releases page. | Planned, see [UPDATE-CHANNELS.md](UPDATE-CHANNELS.md). |
+| macOS Settings text | Settings → Updates said "This beta is not Developer ID signed yet" even though the macOS build is Developer ID signed and notarised. | Fixed in 0.8.0-rc.2; the installed version, build and real signing state are shown. |
+| Updates | There was no automatic update or channel choice; Settings → Updates only opened the GitHub releases page. | Fixed in 0.8.0-rc.2: signed feed, Stable / RC / Beta, daily check, click-to-download and size/SHA-256 verification. |
 
 ## Known behavior requiring improvement
 
 | Item | Effect | Workaround / status |
 |---|---|---|
-| OS DNS lookup can delay feed-worker shutdown | Stop-aware resolver wait is capped at 100 ms; one blocking OS lookup may finish in a detached thread, and a TCP connect already in progress can take up to 5 s. | Bounded resolver timeout and regression test; state the remaining 5 s connect bound. See [quality review](QUALITY.md#still-requiring-acceptance-testing). |
+| OS DNS lookup can delay feed-worker shutdown | A blocking OS lookup may finish in a detached thread, and a TCP connect already in progress can take up to 5 s. | Fixed in 0.8.0-rc.2 (PR 148): the worker stops within 100 ms while DNS is pending; the remaining 5 s connect bound is stated. See [quality review](QUALITY.md#still-requiring-acceptance-testing). |
 | Old macOS saver can remain selected after upgrading | A legacy 0.2 bundle can show a blank preview while the new saver is installed. This does not establish a defect in the new bundle. | Back up duplicate legacy bundles, select **Threat Atlas SOC**, then reopen System Settings; see [installation guidance](../README.md#install). |
 
 ## Distribution limitations

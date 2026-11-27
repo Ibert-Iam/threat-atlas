@@ -1,0 +1,13 @@
+[package]
+name = "threat-atlas-web"
+version.workspace = true
+edition = "2021"
+license = "MIT"
+description = "AtlasSOC web page (ibert.se/AtlasSOC): the shared core as WebAssembly"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+threat-atlas-core = { path = "../core" }

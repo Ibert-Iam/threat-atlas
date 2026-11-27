@@ -146,6 +146,8 @@ pub struct Renderer {
     pub(crate) saver_identity: bool,
     /// Cached once-per-minute solar night/twilight tint; the mask is not recomputed per frame.
     night: Option<(u64, Pixmap)>,
+    /// Web page (GreyNoise only): no Radar wording in the static frame.
+    pub(crate) web_mode: bool,
 }
 /// Column boundary between the map and the right-hand panels in the 1440x900 layout.
 pub(crate) const WIDE_SPLIT: f32 = 1015.;
@@ -265,6 +267,7 @@ impl Renderer {
             local_location: None,
             saver_identity: false,
             night: None,
+            web_mode: false,
         }
     }
     /// Frame x for a layout x: right-hand column shifted in a wide SOC frame.
