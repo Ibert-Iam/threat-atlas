@@ -52,6 +52,8 @@ pub mod update_feed;
 pub mod update_ffi;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod update_package;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod update_test_feed;
 pub const WIDTH: u32 = 1440;
 pub const HEIGHT: u32 = 900;
 #[cfg(not(target_arch = "wasm32"))]
