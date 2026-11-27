@@ -41,6 +41,7 @@ pub mod saver;
 pub mod saver_config;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod saver_ffi;
+pub mod solar;
 pub mod timezones;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod update;
