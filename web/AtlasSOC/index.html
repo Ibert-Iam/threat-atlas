@@ -2,17 +2,60 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' wss://threat-map-api.greynoise.io; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
-<title>AtlasSOC — live in your browser</title>
+<title>AtlasSOC – live cyber threat map in your browser (GreyNoise) | Threat Atlas</title>
+<meta name="description" content="AtlasSOC is a free, open-source live cyber threat map. Watch GreyNoise public threat-map records arrive on a world map in your browser, drawn by the same WebAssembly code as the AtlasSOC desktop app.">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="author" content="Robert Ibert">
+<meta name="theme-color" content="#050a12">
+<link rel="canonical" href="https://ibert.se/AtlasSOC/">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Threat Atlas">
+<meta property="og:locale" content="en_US">
+<meta property="og:url" content="https://ibert.se/AtlasSOC/">
+<meta property="og:title" content="AtlasSOC – live cyber threat map in your browser">
+<meta property="og:description" content="Free, open-source live SOC map of GreyNoise public threat-map records. Runs in the browser with WebAssembly; no cookies, no tracking.">
+<meta property="og:image" content="https://ibert.se/AtlasSOC/atlassoc-preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="AtlasSOC SOC view: world map with threat arcs, counters and recent records (sample data)">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AtlasSOC – live cyber threat map in your browser">
+<meta name="twitter:description" content="Free, open-source live SOC map of GreyNoise public threat-map records, in your browser.">
+<meta name="twitter:image" content="https://ibert.se/AtlasSOC/atlassoc-preview.jpg">
+<meta name="twitter:image:alt" content="AtlasSOC SOC view: world map with threat arcs, counters and recent records (sample data)">
 <link rel="stylesheet" href="atlassoc.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "AtlasSOC",
+  "alternateName": "AtlasSOC Web",
+  "url": "https://ibert.se/AtlasSOC/",
+  "description": "Free, open-source live cyber threat map that shows GreyNoise public threat-map records on a world map, in the browser via WebAssembly.",
+  "applicationCategory": "SecurityApplication",
+  "operatingSystem": "Any (modern web browser with WebAssembly)",
+  "browserRequirements": "Requires JavaScript and WebAssembly",
+  "softwareVersion": "0.8.0",
+  "isAccessibleForFree": true,
+  "license": "https://opensource.org/licenses/MIT",
+  "image": "https://ibert.se/AtlasSOC/atlassoc-preview.jpg",
+  "screenshot": "https://ibert.se/AtlasSOC/atlassoc-preview.jpg",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+  "author": { "@type": "Person", "name": "Robert Ibert", "url": "https://ibert.se/" },
+  "codeRepository": "https://github.com/Ibert-Iam/threat-atlas",
+  "sameAs": ["https://github.com/Ibert-Iam/threat-atlas"]
+}
+</script>
 </head>
 <body>
 <main>
-  <section id="gate" class="gate">
+  <section id="gate" class="gate" aria-labelledby="title">
     <p class="eyebrow">ATLASSOC · WEB</p>
-    <h1>AtlasSOC, live in your browser</h1>
+    <h1 id="title">AtlasSOC: live cyber threat map in your browser</h1>
     <p>The same live SOC map as the AtlasSOC desktop app, drawn by the same code (compiled to WebAssembly). It shows
       records from the <strong>GreyNoise public threat map</strong> as they arrive.</p>
     <ul>
@@ -23,21 +66,69 @@
         so GreyNoise sees your IP address. This page sends nothing else, sets no cookies and has no tracking.</li>
       <li>Not included on the web: Cloudflare Radar, OSINT sources, settings. Use the desktop app for those.</li>
     </ul>
-    <p><button id="start" type="button">Start live view</button>
+    <p class="actions"><button id="start" type="button">Start live view</button>
       <a class="secondary" href="https://github.com/Ibert-Iam/threat-atlas/releases/tag/atlassoc-v0.8.0">Desktop app (Windows, macOS) ↗</a></p>
+    <noscript><p class="warn">AtlasSOC needs JavaScript and WebAssembly to draw the live map. Everything on this page can
+      still be read without them, and the <a href="https://github.com/Ibert-Iam/threat-atlas/releases/tag/atlassoc-v0.8.0">desktop
+      app</a> works without a browser.</p></noscript>
     <p class="legal">AtlasSOC is free, non-commercial and open source (MIT). Maintained by Robert Ibert, who is personally
       responsible for what is published; not an Ibert Consulting product.</p>
   </section>
-  <section id="live" class="live" hidden>
+
+  <section id="live" class="live" hidden aria-label="Live view">
     <div class="bar">
-      <span id="status" class="status">Connecting…</span>
+      <span id="status" class="status" role="status">Connecting…</span>
       <button id="stop" type="button">Stop</button>
     </div>
-    <canvas id="soc" width="1440" height="900" aria-label="Live SOC map of received GreyNoise threat-map records"></canvas>
+    <div id="stage" class="stage">
+      <canvas id="soc" width="1440" height="900" role="img" aria-label="Live SOC map of received GreyNoise threat-map records"></canvas>
+    </div>
+    <p class="rotate">Turn your device sideways for a larger map.</p>
     <p class="note">GreyNoise public threat map: received records, not unique attacks · times UTC and your local time ·
       AtlasSOC 0.8.0 web · <a href="https://github.com/Ibert-Iam/threat-atlas">source ↗</a></p>
   </section>
-  <noscript><p>AtlasSOC needs JavaScript and WebAssembly. The <a href="https://github.com/Ibert-Iam/threat-atlas/releases/tag/atlassoc-v0.8.0">desktop app</a> works without a browser.</p></noscript>
+
+  <article id="about" class="about">
+    <figure>
+      <img src="atlassoc-preview.jpg" width="1200" height="630" loading="lazy" decoding="async"
+        alt="AtlasSOC SOC view: world map with threat arcs between countries, counters for malicious, suspicious and benign records, and a list of recent records (sample data)">
+      <figcaption>The AtlasSOC SOC view (sample data). The live view draws the same screen from real records.</figcaption>
+    </figure>
+
+    <h2>What the live threat map shows</h2>
+    <p>AtlasSOC turns the public GreyNoise threat-map feed into a security operations centre (SOC) style wall display.
+      Each record that arrives is drawn as an arc from its source country to its destination country and coloured by
+      the GreyNoise classification: <strong>malicious</strong>, <strong>suspicious</strong> or <strong>benign</strong>.
+      Countries are tinted by their most common class over the last five minutes.</p>
+    <ul>
+      <li>Counters for malicious, suspicious and benign records over the last five minutes.</li>
+      <li>Received records per second, as a rolling 90-second chart.</li>
+      <li>A list of the latest records with source, destination and time.</li>
+      <li>UTC and your local time, with an hour strip under the map.</li>
+    </ul>
+    <p>The counts are records received from the feed, not unique attacks or unique attackers.</p>
+
+    <h2>How it works</h2>
+    <p>The page loads a small WebAssembly module built from the same Rust code as the desktop app. Only when you press
+      <em>Start live view</em> does your browser open a WebSocket to GreyNoise; the module keeps the feed state and draws
+      each frame, which the page copies to the screen. The map adapts to your screen: wide screens get an extra
+      top-countries column, and the picture is drawn for your display's pixel density.</p>
+
+    <h2>AtlasSOC desktop app and screensaver</h2>
+    <p>The free desktop app for Windows and macOS adds Cloudflare Radar aggregates, OSINT sources and settings, and Threat
+      Atlas also runs as a screensaver. Downloads, release notes and the full source code are on
+      <a href="https://github.com/Ibert-Iam/threat-atlas">GitHub</a>.</p>
+
+    <h2>Privacy</h2>
+    <p>No cookies, no analytics and no tracking. The page itself sends nothing; the only outside connection is the one your
+      browser makes to GreyNoise after you start the live view. See the
+      <a href="https://github.com/Ibert-Iam/threat-atlas/blob/main/PRIVACY.md">privacy notice</a>.</p>
+  </article>
+
+  <footer class="foot">
+    <p>AtlasSOC · Threat Atlas · MIT licence · by <a href="https://ibert.se/">Robert Ibert</a> ·
+      <a href="https://github.com/Ibert-Iam/threat-atlas">source code</a></p>
+  </footer>
 </main>
 <script src="atlassoc.js"></script>
 </body>
