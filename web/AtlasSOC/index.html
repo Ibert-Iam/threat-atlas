@@ -10,6 +10,10 @@
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="author" content="Robert Ibert">
 <meta name="theme-color" content="#050a12">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AtlasSOC">
 <link rel="canonical" href="https://ibert.se/AtlasSOC/">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <meta property="og:type" content="website">
@@ -78,7 +82,8 @@
   <section id="live" class="live" hidden aria-label="Live view">
     <div class="bar">
       <span id="status" class="status" role="status">Connecting…</span>
-      <button id="stop" type="button">Stop</button>
+      <span class="tools"><button id="fullscreen" type="button" hidden>Full screen</button>
+        <button id="stop" type="button">Stop</button></span>
     </div>
     <div id="stage" class="stage">
       <canvas id="soc" width="1440" height="900" role="img" aria-label="Live SOC map of received GreyNoise threat-map records"></canvas>

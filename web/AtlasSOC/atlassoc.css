@@ -23,11 +23,17 @@ a { color: var(--gold); }
 .foot { max-width: 760px; margin: 32px auto 8px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 12px; }
 body.is-live .about, body.is-live .foot { display: none; }
 
-/* Live view: fills the viewport; the script sizes the canvas to the stage, keeping the frame's shape. */
-body.is-live main { max-width: none; padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
-.live { display: flex; flex-direction: column; height: calc(100vh - 16px); height: calc(100dvh - 16px); }
+/* Live view: a fixed layer over the whole visible viewport (dynamic viewport units, so iOS Safari's toolbars are
+   left out), padded by the safe areas (notch, home indicator). The script sizes the canvas to the stage, keeping the
+   frame's shape, and sets --app-h from visualViewport where dvh is missing or lags after rotation. */
+body.is-live { overflow: hidden; overscroll-behavior: none; }
+body.is-live main { max-width: none; padding: 0; }
+.live { position: fixed; inset: 0; z-index: 1; display: flex; flex-direction: column; background: var(--bg);
+  width: 100vw; width: 100dvw; height: 100vh; height: 100dvh; height: var(--app-h, 100dvh);
+  padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
 .live[hidden] { display: none; }
 .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; flex: none; }
+.bar .tools { display: flex; gap: 8px; flex: none; }
 .bar button { padding: 6px 14px; font-size: 14px; min-height: 36px; background: var(--line); color: var(--ink); }
 .status { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stage { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; }
@@ -36,3 +42,13 @@ canvas { display: block; width: 100%; height: auto; max-width: 100%; max-height:
 .rotate { display: none; flex: none; margin: 8px 0 0; color: var(--gold); font-size: 13px; text-align: center; }
 @media (orientation: portrait) and (max-width: 820px) { .rotate { display: block; } }
 @media (max-width: 600px) { .gate { margin-top: 2vh; } .note { font-size: 12px; } }
+#fullscreen[hidden] { display: none; }
+/* Phones in landscape: little height, so a slim bar, no footnote or border; the map gets the rest. */
+@media (orientation: landscape) and (max-height: 540px) {
+  .live { padding-top: max(4px, env(safe-area-inset-top)); padding-bottom: max(4px, env(safe-area-inset-bottom)); }
+  .bar { margin-bottom: 4px; }
+  .bar button { min-height: 28px; padding: 2px 12px; font-size: 13px; }
+  .status { font-size: 12px; }
+  .live .note { display: none; }
+  .live canvas { border: 0; border-radius: 0; }
+}
