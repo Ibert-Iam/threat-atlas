@@ -2,10 +2,10 @@
 //! files, what it is and its saved state, and gets the outcome and the new state back as JSON. The core
 //! does the whole check through [`crate::update_check::check`]; the host only downloads (HTTPS, no
 //! redirects), saves the state and shows the result. No network, files or installation here.
-use crate::feed_signature::official_trust_root;
 use crate::update_check::{check, CheckError, CheckState, Installed, Outcome};
 use crate::update_feed::{Asset, Channel, FeedError, Kind, Selected};
 use crate::update_package::{self, PackageError};
+use crate::update_test_feed::{feed_source, FEED_HOST};
 use serde::Deserialize;
 use std::ffi::{c_char, CStr};
 
@@ -68,7 +68,8 @@ pub fn respond(feed: &[u8], signature: &[u8], request: &str) -> String {
         kind,
     };
     let mut state = req.state;
-    let root = official_trust_root();
+    // The official R1 key, or the throwaway test root in a `test-feed` build given one (WP9).
+    let root = feed_source().root;
     let outcome = if root.is_some() && req.download_failed {
         state.last_check = Some(now.to_string());
         state.last_result = Some("failed".into());
@@ -156,6 +157,32 @@ pub unsafe extern "C" fn ta_update_check(
     response.len()
 }
 
+/// The feed this build reads, as JSON: `{"feed": "https://...", "signature": "https://...", "test": bool}`.
+/// Always the official feed unless this is a `test-feed` build with a valid `ATLAS_TEST_FEED_PATH`
+/// (see [`crate::update_test_feed`]); the host shows "TEST FEED" and keeps a separate state file then.
+pub fn source_json() -> String {
+    let source = feed_source();
+    serde_json::json!({
+        "feed": format!("https://{FEED_HOST}{}", source.feed_path),
+        "signature": format!("https://{FEED_HOST}{}", source.signature_path),
+        "test": source.test,
+    })
+    .to_string()
+}
+
+/// C entry for [`source_json`]: writes at most `cap` bytes (no NUL) to `out` and returns the full length.
+/// # Safety
+/// `out` must have room for `cap` bytes or be null.
+#[no_mangle]
+pub unsafe extern "C" fn ta_update_source(out: *mut u8, cap: usize) -> usize {
+    let text = source_json();
+    if !out.is_null() {
+        let n = text.len().min(cap);
+        std::ptr::copy_nonoverlapping(text.as_ptr(), out, n);
+    }
+    text.len()
+}
+
 #[derive(Deserialize)]
 struct OfferJson {
     version: String,
@@ -230,6 +257,31 @@ pub unsafe extern "C" fn ta_update_verify_package(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::feed_signature::official_trust_root;
+
+    #[test]
+    fn source_is_the_official_feed_by_default() {
+        if cfg!(feature = "test-feed") && std::env::var_os("ATLAS_TEST_FEED_PATH").is_some() {
+            return;
+        }
+        let v: serde_json::Value = serde_json::from_str(&source_json()).unwrap();
+        assert_eq!(
+            v["feed"],
+            "https://raw.githubusercontent.com/Ibert-Iam/threat-atlas/update-feed/feed.json"
+        );
+        assert_eq!(
+            v["signature"],
+            "https://raw.githubusercontent.com/Ibert-Iam/threat-atlas/update-feed/feed.json.sig"
+        );
+        assert_eq!(v["test"], false);
+        let needed = unsafe { ta_update_source(std::ptr::null_mut(), 0) };
+        let mut buffer = vec![0u8; needed];
+        assert_eq!(
+            unsafe { ta_update_source(buffer.as_mut_ptr(), needed) },
+            needed
+        );
+        assert_eq!(buffer, source_json().into_bytes());
+    }
 
     fn request(extra: &str) -> String {
         format!(

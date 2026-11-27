@@ -5,15 +5,14 @@
 #![cfg_attr(not(windows), allow(dead_code))]
 use serde::{Deserialize, Serialize};
 use threat_atlas_core::{
-    feed_signature::{official_trust_root, TrustRoot},
     update_check::{check, CheckError, CheckState, Installed, Outcome},
     update_feed::{Channel, FeedError, Kind},
 };
 
-/// The signed feed and its detached signature (docs/UPDATE-CHANNELS.md, "Location").
-pub const FEED_HOST: &str = "raw.githubusercontent.com";
-pub const FEED_PATH: &str = "/Ibert-Iam/threat-atlas/update-feed/feed.json";
-pub const SIGNATURE_PATH: &str = "/Ibert-Iam/threat-atlas/update-feed/feed.json.sig";
+/// Where the signed feed and its detached signature are read (docs/UPDATE-CHANNELS.md, "Location"); a
+/// `test-feed` build may read a WP9 test feed instead (see `threat_atlas_core::update_test_feed`).
+#[cfg_attr(not(windows), allow(unused_imports))]
+pub use threat_atlas_core::update_test_feed::{feed_source, FEED_HOST};
 /// The feed parser refuses anything larger; the signature is one short line.
 pub const MAX_FEED_BYTES: usize = threat_atlas_core::update_feed::MAX_FEED_BYTES;
 pub const MAX_SIGNATURE_BYTES: usize = threat_atlas_core::feed_signature::MAX_SIGNATURE_BYTES;
@@ -116,70 +115,6 @@ pub fn jitter_for(seed: &str) -> i64 {
         hash = hash.wrapping_mul(0x0100_0000_01b3);
     }
     (hash % (MAX_JITTER_SECONDS as u64 + 1)) as i64
-}
-
-/// Where one check reads the feed and which key it trusts. Release builds always use the official feed and
-/// the built-in R1 key. Only a build with the `test-feed` Cargo feature (updater tests, WP9) may take a test
-/// feed path on the same host and a throwaway test root from the environment; it then keeps its own state
-/// file and says "TEST FEED" in the menu, so it never moves the rollback mark of a real installation.
-pub struct FeedSource {
-    pub feed_path: String,
-    pub signature_path: String,
-    pub root: Option<TrustRoot>,
-    pub test: bool,
-}
-
-impl FeedSource {
-    fn official() -> Self {
-        Self {
-            feed_path: FEED_PATH.into(),
-            signature_path: SIGNATURE_PATH.into(),
-            root: official_trust_root(),
-            test: false,
-        }
-    }
-}
-
-pub fn feed_source() -> FeedSource {
-    #[cfg(feature = "test-feed")]
-    if let Some(source) = test_source(
-        std::env::var("ATLAS_TEST_FEED_PATH").ok().as_deref(),
-        std::env::var("ATLAS_TEST_ROOT").ok().as_deref(),
-    ) {
-        return source;
-    }
-    FeedSource::official()
-}
-
-/// `None` (official feed) when no test path is set. A test path outside this repository, or any odd
-/// character, also gives `None`. A set path with a missing or malformed root gives a source with no root,
-/// so the check reports "not available" instead of trusting anything.
-#[cfg_attr(not(feature = "test-feed"), allow(dead_code))]
-fn test_source(path: Option<&str>, root: Option<&str>) -> Option<FeedSource> {
-    let path = path?;
-    let rest = path.strip_prefix("/Ibert-Iam/threat-atlas/")?;
-    let plain = rest
-        .bytes()
-        .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'_' | b'/'));
-    if !plain || rest.contains("..") || rest.contains("//") || !path.ends_with(".json") {
-        return None;
-    }
-    let root = root.and_then(|hex| {
-        let ok = hex.len() == 64 && hex.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
-        ok.then(|| {
-            let mut key = [0u8; 32];
-            for (i, byte) in key.iter_mut().enumerate() {
-                *byte = u8::from_str_radix(&hex[2 * i..2 * i + 2], 16).unwrap_or(0);
-            }
-            TrustRoot { recovery: key }
-        })
-    });
-    Some(FeedSource {
-        feed_path: path.into(),
-        signature_path: format!("{path}.sig"),
-        root,
-        test: true,
-    })
 }
 
 /// One check. `fetch(path, max_bytes)` downloads from [`FEED_HOST`]; `None` means the download failed.
@@ -303,6 +238,7 @@ fn short_time(text: &str) -> String {
 mod tests {
     use super::*;
     use std::cell::RefCell;
+    use threat_atlas_core::{feed_signature::official_trust_root, update_test_feed::FEED_PATH};
 
     fn at(text: &str) -> jiff::Timestamp {
         text.parse().unwrap()
@@ -453,40 +389,5 @@ mod tests {
         )[0]
         .contains("withdrawn"));
         assert_eq!(status_lines(None, &state, false)[1], "Last check: never");
-    }
-
-    #[test]
-    fn test_feed_source_is_confined() {
-        let root = "ab".repeat(32);
-        let ok = test_source(
-            Some("/Ibert-Iam/threat-atlas/wp9/newer-rc/feed.json"),
-            Some(&root),
-        )
-        .unwrap();
-        assert!(ok.test && ok.root.is_some());
-        assert_eq!(
-            ok.signature_path,
-            "/Ibert-Iam/threat-atlas/wp9/newer-rc/feed.json.sig"
-        );
-        assert!(
-            test_source(None, Some(&root)).is_none(),
-            "no path: official feed"
-        );
-        for bad in [
-            "/other/repo/feed.json",
-            "/Ibert-Iam/threat-atlas/../x/feed.json",
-            "/Ibert-Iam/threat-atlas/a b/feed.json",
-            "/Ibert-Iam/threat-atlas/a//feed.json",
-            "/Ibert-Iam/threat-atlas/feed.txt",
-            "/Ibert-Iam/threat-atlas/a?b=feed.json",
-        ] {
-            assert!(test_source(Some(bad), Some(&root)).is_none(), "{bad}");
-        }
-        let no_root = test_source(Some("/Ibert-Iam/threat-atlas/x/feed.json"), Some("AB")).unwrap();
-        assert!(no_root.root.is_none(), "a malformed root trusts nothing");
-        assert!(
-            !feed_source().test,
-            "default builds always use the official feed"
-        );
     }
 }

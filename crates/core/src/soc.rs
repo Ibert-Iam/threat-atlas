@@ -141,6 +141,8 @@ pub struct Options {
     pub radar_note: Option<String>,
     /// Footer shows the screensaver's own version (`version.json`) instead of the Desktop's. Screensaver hosts set it.
     pub saver_identity: bool,
+    /// Web page (ibert.se/AtlasSOC): GreyNoise only, so the frame drops the Radar wording and panel.
+    pub web: bool,
     pub theme: Theme,
 }
 impl Default for Options {
@@ -154,6 +156,7 @@ impl Default for Options {
             radar_hidden: Vec::new(),
             radar_note: None,
             saver_identity: false,
+            web: false,
             theme: Theme::Classic,
         }
     }
@@ -340,6 +343,8 @@ impl Renderer {
                     14,
                     if self.saver_identity {
                         "SCREENSAVER / GREYNOISE LIVE + OPTIONAL OSINT"
+                    } else if self.web_mode {
+                        "SECURITY OPERATIONS / GREYNOISE LIVE / WEB"
                     } else {
                         "SECURITY OPERATIONS / GREYNOISE LIVE + CLOUDFLARE RADAR"
                     },
@@ -357,7 +362,13 @@ impl Renderer {
             35,
             875,
             12,
-            if self.saver_identity { "GREYNOISE: RECEIVED RECORDS, NOT UNIQUE ATTACKS | OPTIONAL OSINT: SOURCE CARDS | TIMES UTC" } else { "GREYNOISE: RECEIVED RECORDS, NOT UNIQUE ATTACKS | RADAR: AGGREGATE SHARES | TIMES UTC" },
+            if self.saver_identity {
+                "GREYNOISE: RECEIVED RECORDS, NOT UNIQUE ATTACKS | OPTIONAL OSINT: SOURCE CARDS | TIMES UTC"
+            } else if self.web_mode {
+                "GREYNOISE: RECEIVED RECORDS, NOT UNIQUE ATTACKS | TIMES UTC | IBERT.SE/ATLASSOC"
+            } else {
+                "GREYNOISE: RECEIVED RECORDS, NOT UNIQUE ATTACKS | RADAR: AGGREGATE SHARES | TIMES UTC"
+            },
             MUTED,
         );
         self.desktop_version_label();
@@ -650,9 +661,11 @@ impl SocView {
         self.counts = counts;
         if self.options.theme != self.base_theme
             || self.options.saver_identity != self.renderer.saver_identity
+            || self.options.web != self.renderer.web_mode
         {
             self.base_theme = self.options.theme;
             self.renderer.saver_identity = self.options.saver_identity;
+            self.renderer.web_mode = self.options.web;
             self.renderer.paint_soc_base(self.base_theme);
             self.overlay_key = None; // recompose tints and icons on the new base
         }
@@ -887,7 +900,7 @@ impl SocView {
             1044,
             80,
             13,
-            &if self.options.saver_identity {
+            &if self.options.saver_identity || self.options.web {
                 format!("GREYNOISE {}", s.status)
             } else {
                 format!("GREYNOISE {} | RADAR {}", s.status, radar_label)
@@ -970,7 +983,20 @@ impl SocView {
             r.text(1044, 258, 13, "NO SELECTED RECORDS YET", MUTED);
         }
 
-        if !self.options.saver_identity {
+        if self.options.web {
+            r.text(1044, 560, 15, "ATLASSOC DESKTOP APP", INFO);
+            for (i, line) in [
+                "CLOUDFLARE RADAR, OSINT SOURCES",
+                "AND SETTINGS ARE IN THE FREE",
+                "DESKTOP APP FOR WINDOWS AND MACOS:",
+                "IBERT.SE",
+            ]
+            .iter()
+            .enumerate()
+            {
+                r.text(1044, 590 + i as i32 * 22, 12, line, MUTED);
+            }
+        } else if !self.options.saver_identity {
             // Right panel, lower half: Cloudflare Radar rows as supplied (informational).
             let layer = if self.options.radar_layer {
                 ""
@@ -1062,22 +1088,21 @@ impl SocView {
             r.rect(640., y as f32 + 3., 12., 10., *colour, 200);
             r.text(660, y, 12, label, TEXT);
         }
-        if !self.options.saver_identity {
-            for (i, (target, label)) in [(false, "RADAR ORIGIN"), (true, "RADAR TARGET")]
-                .into_iter()
-                .enumerate()
-            {
-                let y = 816 + i as i32 * 18;
-                let icon = Icon {
-                    target,
-                    at: (646., y as f32 + 8.),
-                    size: 6.,
-                    label: String::new(),
-                    slices: if target { Vec::new() } else { vec![0.65, 0.35] },
-                };
-                draw_icon(&mut r.pix, &icon, 230.);
-                r.text(660, y, 11, label, TEXT);
-            }
+        for (i, (target, label)) in [(false, "RADAR ORIGIN"), (true, "RADAR TARGET")]
+            .into_iter()
+            .filter(|_| !self.options.web && !self.options.saver_identity)
+            .enumerate()
+        {
+            let y = 816 + i as i32 * 18;
+            let icon = Icon {
+                target,
+                at: (646., y as f32 + 8.),
+                size: 6.,
+                label: String::new(),
+                slices: if target { Vec::new() } else { vec![0.65, 0.35] },
+            };
+            draw_icon(&mut r.pix, &icon, 230.);
+            r.text(660, y, 11, label, TEXT);
         }
         let arcs_note = if self.options.motion == Motion::Realtime {
             "ARCS: <=40/S, <=1S DELAY"
@@ -1104,6 +1129,10 @@ impl SocView {
             },
         ]
         .iter()
+        .filter(|note| {
+            !self.options.web
+                || !(note.contains("RADAR") || note.contains("TARGETS") || note.contains("CLICK"))
+        })
         .enumerate()
         {
             r.text(820, 762 + i as i32 * 18, 11, note, MUTED);
@@ -2350,6 +2379,21 @@ mod tests {
         late.now_ms += REALTIME_ARC_LIFE_MS;
         view.update_arcs(&late);
         assert!(view.arcs.is_empty());
+    }
+    #[test]
+    fn web_mode_draws_and_restores_the_desktop_frame() {
+        let mut state = State::default();
+        state.ingest(&row("NL", "US", "malicious"), 1_000);
+        let snap = state.snapshot(1_500);
+        let mut view = SocView::new();
+        let desktop = view.draw(&snap, state.counts(1_500), None, 0).to_vec();
+        view.options.web = true;
+        let web = view.draw(&snap, state.counts(1_500), None, 0).to_vec();
+        assert_ne!(desktop, web, "web mode changes the Radar wording and panel");
+        view.options.web = false;
+        let back = view.draw(&snap, state.counts(1_500), None, 0).to_vec();
+        assert_eq!(desktop.len(), back.len());
+        assert!(!view.renderer.web_mode, "desktop base repainted");
     }
     #[test]
     fn realtime_continuous_input_respects_rate_budget() {

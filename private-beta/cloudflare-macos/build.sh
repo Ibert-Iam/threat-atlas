@@ -44,7 +44,11 @@ for arch in ${ATLAS_BETA_ARCHS:-arm64 x86_64}; do
     x86_64) target=x86_64-apple-darwin ;;
     *) echo "Unknown architecture: $arch" >&2; exit 1 ;;
   esac
-  cargo build --locked --release -p threat-atlas-core --target "$target" --manifest-path ../../Cargo.toml
+  # ATLAS_TEST_FEED_BUILD=1 makes an updater-test build (WP9) that may read a test feed from the environment.
+  # Never set it for a release; release builds always read the official feed with the built-in key.
+  if [ "${ATLAS_TEST_FEED_BUILD:-0}" = 1 ]; then FEATURES="--features test-feed"; else FEATURES=""; fi
+  # shellcheck disable=SC2086
+  cargo build --locked --release -p threat-atlas-core $FEATURES --target "$target" --manifest-path ../../Cargo.toml
   CORE="${CARGO_TARGET_DIR:-../../target}/$target/release/libthreat_atlas_core.a"
   xcrun swiftc -target "$arch-apple-macos14" -module-cache-path "$OUT/module-cache-$arch" -parse-as-library \
     -import-objc-header RadarCoreFFI.h RadarCore.swift RadarModel.swift CoreAtlasView.swift LicenseConsent.swift OsintController.swift OsintSettingsView.swift UpdateController.swift \
@@ -54,8 +58,15 @@ for arch in ${ATLAS_BETA_ARCHS:-arm64 x86_64}; do
 done
 lipo -create "$@" -output "$APP/Contents/MacOS/AtlasRadar"
 rm -f "$@"
+# Release guard: only an updater-test build may contain the test-feed switch (its variable name is the marker).
+if [ "${ATLAS_TEST_FEED_BUILD:-0}" != 1 ] && grep -q -a ATLAS_TEST_FEED_PATH "$APP/Contents/MacOS/AtlasRadar"; then
+  echo "Refusing: this build contains the updater test-feed switch; rebuild without ATLAS_TEST_FEED_BUILD." >&2
+  exit 1
+fi
+# A test-feed build is named so in Finder and About, so it is never mistaken for a release.
+if [ "${ATLAS_TEST_FEED_BUILD:-0}" = 1 ]; then BUNDLE_NAME="AtlasSOC TEST FEED"; else BUNDLE_NAME="AtlasSOC"; fi
 cat > "$APP/Contents/Info.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>dev.threatatlas.private.radar</string><key>CFBundleName</key><string>AtlasSOC</string><key>CFBundleExecutable</key><string>AtlasRadar</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleShortVersionString</key><string>$VERSION</string><key>CFBundleVersion</key><string>$BUILD</string><key>LSMinimumSystemVersion</key><string>14.0</string><key>NSHighResolutionCapable</key><true/></dict></plist>
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>dev.threatatlas.private.radar</string><key>CFBundleName</key><string>$BUNDLE_NAME</string><key>CFBundleExecutable</key><string>AtlasRadar</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleShortVersionString</key><string>$VERSION</string><key>CFBundleVersion</key><string>$BUILD</string><key>LSMinimumSystemVersion</key><string>14.0</string><key>NSHighResolutionCapable</key><true/></dict></plist>
 PLIST
 cp ../../assets/atlassoc/sentinel/AtlasSOC.icns "$APP/Contents/Resources/AtlasSOC.icns"
 /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string AtlasSOC.icns" "$APP/Contents/Info.plist"
