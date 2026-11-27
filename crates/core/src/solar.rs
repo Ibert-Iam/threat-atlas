@@ -103,8 +103,11 @@ mod tests {
             unix_ms(2026, 6, 21, 12, 1),
             unix_ms(2026, 12, 21, 12, 0),
         ] {
-            let longitude = subsolar_point(now).1;
-            assert!(longitude.abs() <= 1.0, "subsolar longitude {longitude}");
+            let offset_deg = subsolar_point(now).1.abs();
+            assert!(
+                offset_deg <= 1.0,
+                "subsolar point {offset_deg} degrees from Greenwich"
+            );
         }
     }
 
