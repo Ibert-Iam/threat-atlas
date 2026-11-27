@@ -2,6 +2,8 @@
 #[cfg(windows)]
 mod saver_host;
 #[cfg(windows)]
+mod saver_update;
+#[cfg(windows)]
 mod windows;
 #[cfg(windows)]
 fn main() {
