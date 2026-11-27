@@ -194,6 +194,9 @@ fn parse_mode(args: &[String]) -> Result<Mode, String> {
     }
 }
 
+/// How long the settings dialog waits for the update check before it opens without a result.
+const UPDATE_WAIT: Duration = Duration::from_secs(10);
+
 /// The settings dialog: display mode (standard or panorama) and the update line (#92). OSINT sources and keys
 /// are chosen in AtlasSOC.
 fn configure(owner: Option<usize>) -> Result<(), Box<dyn Error>> {
@@ -201,11 +204,25 @@ fn configure(owner: Option<usize>) -> Result<(), Box<dyn Error>> {
     let enabled = fs::read_to_string(&path).is_ok_and(|mode| mode.trim() == "panorama");
     let mode = if enabled { "Panorama" } else { "Standard" };
     // One signed-feed check per opening of the settings; never while the screensaver runs.
-    let update = crate::saver_update::check();
-    let update_line = update
-        .as_ref()
-        .map(|outcome| format!("{}\n\n", threat_atlas_core::saver_update::describe(outcome)))
-        .unwrap_or_default();
+    // On its own thread with a short wait, so a hanging network never holds the dialog for long.
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(crate::saver_update::check());
+    });
+    let (update, update_line) = match rx.recv_timeout(UPDATE_WAIT) {
+        Ok(Some(outcome)) => {
+            let line = format!(
+                "{}\n\n",
+                threat_atlas_core::saver_update::describe(&outcome)
+            );
+            (Some(outcome), line)
+        }
+        Ok(None) => (None, String::new()),
+        Err(_) => (
+            None,
+            "The update list did not answer in time; your version is unchanged.\n\n".into(),
+        ),
+    };
     let message: Vec<u16> = format!(
         "{update_line}Current display mode: {mode}\n\nYes: Panorama across two matching side-by-side displays\nNo: Standard display mode\nCancel: Keep the current mode\n\nLive GreyNoise public threat-map telemetry. No cookies, browser, account or API key required.\nThe AtlasSOC view with rotating OSINT cards is used here. OSINT sources, watched domains and API keys are chosen in AtlasSOC Settings; this screen saver only reads them. With nothing chosen, no OSINT request is made.\nGreen LIVE means records arrived within 10 seconds. Routes expire after 6 seconds. Offline feeds reconnect automatically.\nThe header shows UTC and system local time. Observation times are receipt times in UTC.\nUse Windows Screen Saver Settings for idle time and lock behavior."
     )
