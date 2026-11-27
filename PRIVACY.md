@@ -78,3 +78,25 @@ The full user guide is [docs/OSINT-SOURCES.md](docs/OSINT-SOURCES.md); key setup
 - **Provider terms:** each source's licence, attribution and rate limit is shown in the app's OSINT sources
   dialog and in [docs/OSINT-SOURCES.md](docs/OSINT-SOURCES.md). A provider's privacy policy also applies to the
   requests that reach it.
+
+## Screensaver with optional OSINT sources (0.8.0)
+
+This section describes the shared-core screensaver (Windows and macOS), not the historical 0.4.8 screensaver. The
+0.4.8 package sends only the GreyNoise feed described above.
+
+The screensaver reads the source switches and watched domains from AtlasSOC's `settings.json` and uses only the
+**keyless** sources. It never reads the macOS Keychain or Windows Credential Manager, never opens a key-entry
+dialog and never makes a request for a source that needs a key. Sources that need a key stay off in the screensaver.
+"Off" means no request.
+
+When a keyless source is enabled, its provider sees the user's public IP address and normal HTTPS request metadata:
+CISA (KEV), FIRST (EPSS), the Tor Project, SANS ISC/DShield, abuse.ch (SSLBL), Spamhaus (DROP), ransomware.live and
+the Phishing.Database list on GitHub. No screen content, local address or key is sent. The saver does not fetch,
+resolve or connect to a URL, domain or address taken from threat data. Click-only lookups (Shodan InternetDB,
+AbuseIPDB) and Cloudflare Radar are not part of the saver.
+
+On macOS the screensaver runs in Apple's sandboxed screen-saver host. If it cannot see AtlasSOC's settings file, every
+optional source stays off; it does not fall back to a Keychain read. Source caches and state stay under the saver's
+own application-data folder and are not uploaded. The short on-screen attribution lines are in
+[docs/SAVER-ATTRIBUTION.md](docs/SAVER-ATTRIBUTION.md); the full notices remain in
+[docs/OSINT-ATTRIBUTION.md](docs/OSINT-ATTRIBUTION.md).

@@ -106,6 +106,13 @@ signed, notarized and stapled. Historical ad-hoc packages remain unchanged.
 The signing process is described in [signing instructions](docs/SIGNING.md). Do not disable
 OS security protections to run an untrusted download.
 
+## Screensaver 0.4.x users: one-time manual upgrade
+
+The 0.4.x screensaver updaters pin the old release URLs and cannot follow the signed feed. Install the 0.8.0
+screensaver **manually once**; after that, the 0.8.0 updater uses the signed feed. Keep a working 0.4.x copy until
+the new saver has been previewed and tested. The macOS screensaver never reads the Keychain; optional keyed OSINT
+sources stay off.
+
 ## Automatic updates
 
 AtlasSOC Desktop 0.8.0 checks the signed update feed from **Settings → Updates** on Windows and macOS. The feed is a
