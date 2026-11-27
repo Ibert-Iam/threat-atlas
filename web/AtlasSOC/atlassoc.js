@@ -85,7 +85,40 @@
     dprQuery = { mql, dpr };
   }
 
-  function relayout() { layoutDirty = true; }
+  // The visible height. iOS Safari keeps 100vh at the toolbar-less height and older versions lack dvh, so the
+  // live layer takes its height from innerHeight (not visualViewport, which shrinks with pinch zoom).
+  function relayout() {
+    layoutDirty = true;
+    const h = Math.round(window.innerHeight);
+    if (h > 0) document.documentElement.style.setProperty('--app-h', h + 'px');
+    if (running && (window.scrollX || window.scrollY)) window.scrollTo(0, 0);
+  }
+
+  // Fullscreen API where the browser has it for page elements (desktop, Android, iPad). iPhone Safari only allows
+  // it for video, so there the button stays hidden and the fixed full-viewport layer does the job; added to the
+  // Home Screen, the page opens without browser bars (apple-mobile-web-app-capable).
+  const root = document.documentElement;
+  const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+  const fsEnabled = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled) &&
+    !!(root.requestFullscreen || root.webkitRequestFullscreen);
+  function enterFullscreen() {
+    if (!fsEnabled || fsElement()) return;
+    try {
+      const p = root.requestFullscreen ? root.requestFullscreen({ navigationUI: 'hide' }) : root.webkitRequestFullscreen();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) { /* not allowed here; the fixed layer still fills the viewport */ }
+  }
+  function exitFullscreen() {
+    if (!fsElement()) return;
+    try {
+      const p = document.exitFullscreen ? document.exitFullscreen() : document.webkitExitFullscreen();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) { /* ignore */ }
+  }
+  function fullscreenChanged() {
+    $('fullscreen').textContent = fsElement() ? 'Exit full screen' : 'Full screen';
+    relayout();
+  }
 
   function draw() {
     if (!running) return;
@@ -107,6 +140,8 @@
 
   async function start() {
     $('start').disabled = true;
+    // Touch devices go full screen straight away (this click is the user gesture the API needs).
+    if (window.matchMedia('(pointer: coarse)').matches) enterFullscreen();
     try {
       await load();
     } catch (e) {
@@ -118,7 +153,8 @@
     document.body.classList.add('is-live');
     $('gate').hidden = true;
     $('live').hidden = false;
-    layoutDirty = true;
+    $('fullscreen').hidden = !fsEnabled;
+    relayout();
     connect();
     frameId = requestAnimationFrame(draw);
   }
@@ -127,6 +163,7 @@
     running = false;
     cancelAnimationFrame(frameId);
     disconnect();
+    exitFullscreen();
     document.body.classList.remove('is-live');
     $('live').hidden = true;
     $('gate').hidden = false;
@@ -141,8 +178,13 @@
 
   if (window.ResizeObserver) new ResizeObserver(relayout).observe(stage);
   window.addEventListener('resize', relayout);
-  window.addEventListener('orientationchange', relayout);
+  window.addEventListener('orientationchange', () => { relayout(); setTimeout(relayout, 300); });
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', relayout);
+  document.addEventListener('fullscreenchange', fullscreenChanged);
+  document.addEventListener('webkitfullscreenchange', fullscreenChanged);
+  relayout();
 
   $('start').addEventListener('click', start);
   $('stop').addEventListener('click', stop);
+  $('fullscreen').addEventListener('click', () => { if (fsElement()) exitFullscreen(); else enterFullscreen(); });
 })();
