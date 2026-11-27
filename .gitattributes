@@ -1,0 +1,2 @@
+# Signed test fixtures must keep their exact bytes on every OS (no CRLF conversion on Windows).
+crates/core/tests/fixtures/** -text
