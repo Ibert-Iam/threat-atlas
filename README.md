@@ -1,4 +1,4 @@
-> **AtlasSOC Desktop:** Windows x64 and universal macOS 14+ packages are documented in [docs/ATLAS-SOC-BETA.md](docs/ATLAS-SOC-BETA.md); the 0.8.0 release candidate is described below. This is separate from the screensaver; Windows is unsigned and both platforms have hardware limits. A separate [Linux x86_64 preview](docs/ATLAS-SOC-LINUX.md) (0.7.0) is available without Cloudflare Radar.
+> **AtlasSOC Desktop:** Windows x64 and universal macOS 14+ packages are documented in [docs/ATLAS-SOC-BETA.md](docs/ATLAS-SOC-BETA.md); the stable 0.8.0 release is described below. This is separate from the screensaver; Windows is unsigned and both platforms have hardware limits. A separate [Linux x86_64 preview](docs/ATLAS-SOC-LINUX.md) (0.7.0) is available without Cloudflare Radar.
 
 # Threat Atlas SOC
 
@@ -33,12 +33,30 @@ The official **0.4.0**, build **8**, release ships without trusted code signing.
 Windows SCR/MSI files are unsigned; macOS bundles are ad-hoc signed and unnotarized.
 Systems may warn or block installation. Do not disable OS security protections.
 It includes dual clocks, optional signed-update support, macOS preview fixes and
-screenshot thumbnails. Automatic updates remain unavailable without trusted signing.
+screenshot thumbnails. These historical packages predate the signed feed; current update behaviour is described below.
 [Downloads](https://github.com/ibert-ai/threat-atlas/releases/tag/v0.4.0).
 Manual platform acceptance remains incomplete; see docs/QUALITY.md.
 See [release/version handling](docs/RELEASING.md) and [change history](CHANGELOG.md).
 
-## AtlasSOC Desktop 0.8.0 release candidate 1
+## AtlasSOC Desktop 0.8.0 (stable)
+
+**AtlasSOC Desktop 0.8.0** (build 17) is the current stable release for Windows x64 (unsigned) and macOS 14+ (Developer ID signed and notarised). It
+keeps the 13 optional OSINT sources and adds a real **Settings → Updates** view: a daily check of the signed update
+feed (Ed25519, offline recovery key with a delegated signer), channels Stable / Release Candidates / Betas, and a
+clear result for every outcome. A failed check is never shown as "up to date".
+
+Downloads happen only after a click. The installer or app is checked for exact size and SHA-256; on macOS it must
+also carry the official Developer ID, notarization and a Gatekeeper pass. The Windows installer opens normally and
+the macOS app is shown in Finder. Nothing installs silently. Windows builds remain unsigned: trusted Windows code
+signing is not possible at present (paid certificate; open-source programmes declined), so SmartScreen or policy may
+warn; do not disable OS protections.
+
+The release also includes prompt feed-worker shutdown with slow DNS, smoother realtime arcs, time-zone labels on
+their zone's meridian (the viewer's own zone shows the real local hour in gold, including daylight saving time),
+corrected help links, webpki-roots 1.0.12 and tao 0.37.3, and a dependency audit in CI. [Release notes](docs/RELEASE-0.8.0-rc.2.md),
+[what is still limited](docs/KNOWN-BUGS.md) and [update channels](docs/UPDATE-CHANNELS.md).
+
+## AtlasSOC Desktop 0.8.0 release candidate 1 (previous)
 
 **AtlasSOC Desktop 0.8.0-rc.1** (build 15) is a pre-release for Windows x64 (unsigned) and macOS 14+. It adds 13
 optional OSINT sources next to the live map: known-exploited vulnerabilities (CISA KEV + FIRST EPSS), Tor exits,
@@ -80,8 +98,8 @@ If an upgrade shows a blank **Threat Atlas** preview, check that you selected
 `ThreatAtlas.saver` may remain in both `~/Library/Screen Savers` and
 `/Library/Screen Savers`; back them up before removing duplicates. The new bundle
 uses a distinct class/identifier and includes screenshot thumbnails. Reopen
-System Settings after installing. Automatic updating requires a trusted signed
-release; it is unavailable in unsigned/ad-hoc builds, including official 0.4.0.
+System Settings after installing. These historical packages predate the signed feed; see
+Automatic updates below for 0.8.0 behaviour.
 
 Current Windows packages are unsigned; the 0.4.8 macOS package is Developer ID
 signed, notarized and stapled. Historical ad-hoc packages remain unchanged.
@@ -90,21 +108,16 @@ OS security protections to run an untrusted download.
 
 ## Automatic updates
 
-The updater design requires a trusted signed build and separately signed update
-metadata. Code signing/notarization alone does not establish a working signed
-update channel. Where those release requirements are met:
+AtlasSOC Desktop 0.8.0 checks the signed update feed from **Settings → Updates** on Windows and macOS. The feed is a
+pointer, not an authorisation: the app verifies its detached Ed25519 signature (offline recovery key with an expiring
+delegated signing key), then the channel (Stable, Release Candidates or Betas), then the exact size and SHA-256 of the
+download. On macOS it also requires Developer ID, notarization and Gatekeeper. A failed check keeps the installed
+version and is never reported as up to date.
 
-- **Windows:** not available from the all-users MSI; the per-user updater needs a
-  redesign first.
-- **macOS:** open the preview app and choose **Enable automatic updates** from
-  its application menu. This installs the preview in `~/Applications` and a
-  per-user LaunchAgent, which checks at login and every 24 hours.
-
-Updates download and install in place without repeating the installation steps.
-Checks use stable releases only and defer while the screen saver is running.
-They preserve screen saver selection, idle time and password settings.
-Unsigned/ad-hoc builds cannot enable updates. See [update design and
-release requirements](docs/UPDATES.md), including signing-key rotation and removal.
+The check runs daily and on demand; it downloads only after a click. The Windows installer opens in its normal window,
+and the macOS app is shown in Finder after verification. **Nothing installs silently.** Windows builds stay unsigned,
+so SmartScreen or policy may warn; do not disable OS protections. See [update channels](docs/UPDATE-CHANNELS.md) and
+[release requirements](docs/UPDATES.md).
 
 ## Data and privacy
 

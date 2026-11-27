@@ -1,3 +1,15 @@
+# AtlasSOC Desktop 0.8.0 — stable (build 17)
+
+Stable release for Windows x64 (unsigned) and macOS 14+ (Developer ID signed and notarised); the tested 0.8.0-rc.2 code. Adds Settings → Updates on both platforms: a signed-feed
+check, Stable / Release Candidates / Betas channels, and a clear result for every outcome. Download happens only
+after a click and is verified for size and SHA-256; macOS also requires Developer ID, notarization and Gatekeeper.
+The Windows installer opens normally; the macOS app is shown in Finder. Nothing installs silently. Also includes
+prompt feed-worker shutdown with slow DNS, smoother realtime arcs, time-zone labels on their zone's meridian (the
+viewer's own zone shows the real local hour in gold, including daylight saving time), corrected help links,
+webpki-roots 1.0.12 and tao 0.37.3, and a dependency audit in CI. Windows code signing is not possible at present.
+
+Full notes: [RELEASE-0.8.0-rc.2.md](RELEASE-0.8.0-rc.2.md). Known limits: [KNOWN-BUGS.md](KNOWN-BUGS.md).
+
 # Threat Atlas screensaver 0.4.8 — Stable · Windows + Linux + macOS
 
 Product 0.4.8, build 16. Stable release by the maintainer's decision of 11 November 2026. It promotes the 0.4.7-rc.1 implementation: the owner-approved two-display Windows panorama with the seam over the Atlantic, and the standard single-display layout everywhere else. The Classic look is unchanged and is now pinned by an automated test. The numeric version advances to 0.4.8 because the installer payload changed. This release replaces 0.4.5 as the latest stable.

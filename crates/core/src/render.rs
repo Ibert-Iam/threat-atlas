@@ -144,6 +144,8 @@ pub struct Renderer {
     local_location: Option<(f64, f64)>,
     /// The SOC frame is painted for the screensaver: no "SOC DESKTOP" badge and the saver's own version.
     pub(crate) saver_identity: bool,
+    /// Web page (GreyNoise only): no Radar wording in the static frame.
+    pub(crate) web_mode: bool,
 }
 /// Column boundary between the map and the right-hand panels in the 1440x900 layout.
 pub(crate) const WIDE_SPLIT: f32 = 1015.;
@@ -262,6 +264,7 @@ impl Renderer {
             pal,
             local_location: None,
             saver_identity: false,
+            web_mode: false,
         }
     }
     /// Frame x for a layout x: right-hand column shifted in a wide SOC frame.
@@ -432,15 +435,20 @@ impl Renderer {
         self.text(ccx as i32 - cr as i32 - 16, ccy as i32 - 5, 10, "W", gold);
     }
 
-    /// Hourly 0-23 zone labels along the map bottom. Labels depend only on the UTC hour,
-    /// so they change once on the full hour and never tick between frames.
+    /// Hourly 0-23 zone labels along the map bottom, each on its zone's meridian. The viewer's own
+    /// zone (from the location the host resolved, or else the local UTC offset) shows the real local
+    /// hour from the system clock, in gold, so civil time and daylight saving time are right there.
     fn draw_hour_zones(&mut self, now_ms: u64) {
         let pal = self.pal;
         let y = (MAP_Y + MAP_H - 14.) as i32;
-        for (lon, hour) in crate::timezones::labels(now_ms) {
+        let offset = crate::clock::local_offset_seconds();
+        let lon =
+            crate::timezones::viewer_longitude(self.local_location.map(|(_, lon)| lon), offset);
+        for (lon, hour, local) in crate::timezones::labels(now_ms, Some((lon, offset))) {
             let (x, _) = xy(lon, 90.);
             let x = (x - 7.).clamp(MAP_X + 2., MAP_X + MAP_W - 22.);
-            self.text(x as i32, y, 10, &format!("{hour:02}"), pal.muted);
+            let colour = if local { pal.gold } else { pal.muted };
+            self.text(x as i32, y, 10, &format!("{hour:02}"), colour);
         }
     }
 
@@ -1034,7 +1042,7 @@ mod tests {
             .map(|b| format!("{b:02x}"))
             .collect();
         assert_eq!(
-            hex, "78b496f280abab34bd69837fb0c39f1ade30c2b0399c0d570796816c48e29cca",
+            hex, "ab6c57c60574519aa430373afa6379b5e34bcd066896d7dd418a1611bac412a6",
             "Classic frame changed"
         );
     }

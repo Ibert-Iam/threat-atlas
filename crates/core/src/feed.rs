@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::collections::VecDeque;
+#[cfg(not(target_arch = "wasm32"))]
 use std::{
-    collections::VecDeque,
     net::{SocketAddr, TcpStream, ToSocketAddrs},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -10,13 +11,20 @@ use std::{
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+#[cfg(not(target_arch = "wasm32"))]
 use tungstenite::{protocol::WebSocketConfig, stream::MaybeTlsStream, Message};
 pub const ENDPOINT: &str = "wss://threat-map-api.greynoise.io/ws";
+#[cfg(not(target_arch = "wasm32"))]
 pub fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64
+}
+/// WebAssembly: the browser's clock, handed in with every frame (`crate::web`).
+#[cfg(target_arch = "wasm32")]
+pub fn now_ms() -> u64 {
+    crate::clock::web_now_ms()
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Location {
@@ -101,6 +109,13 @@ pub struct State {
     last_digest: String,
 }
 impl State {
+    /// Connection state for hosts that run the socket themselves (the web page).
+    pub fn set_connected(&mut self, connected: bool) {
+        self.connected = connected;
+        if connected {
+            self.error.clear();
+        }
+    }
     pub fn ingest(&mut self, text: &str, now: u64) {
         if text.len() > 1024 * 1024 {
             self.rejected += 1;
@@ -206,15 +221,18 @@ impl State {
         }
     }
 }
+#[cfg(not(target_arch = "wasm32"))]
 pub struct Feed {
     state: Arc<Mutex<State>>,
     stop: Arc<AtomicBool>,
 }
+#[cfg(not(target_arch = "wasm32"))]
 impl Drop for Feed {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
     }
 }
+#[cfg(not(target_arch = "wasm32"))]
 impl Feed {
     pub fn shared() -> Arc<Self> {
         static SHARED: OnceLock<Mutex<Weak<Feed>>> = OnceLock::new();
@@ -254,11 +272,13 @@ impl State {
         self.country_counts.summary(now)
     }
 }
+#[cfg(not(target_arch = "wasm32"))]
 /// Upper bound for one blocking OS DNS lookup. The resolver itself cannot be
 /// cancelled portably, so it runs on a detached thread and the worker stops
 /// waiting for it as soon as `stop` is set or the deadline passes.
 const DNS_TIMEOUT: Duration = Duration::from_secs(5);
 
+#[cfg(not(target_arch = "wasm32"))]
 fn resolve_with<F>(
     lookup: F,
     timeout: Duration,
@@ -291,6 +311,7 @@ where
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn resolve(host: &str, port: u16, stop: &AtomicBool) -> Result<Vec<SocketAddr>, String> {
     let host = host.to_string();
     resolve_with(
@@ -304,6 +325,7 @@ fn resolve(host: &str, port: u16, stop: &AtomicBool) -> Result<Vec<SocketAddr>, 
     )
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn connect(stop: &AtomicBool) -> Result<tungstenite::WebSocket<MaybeTlsStream<TcpStream>>, String> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let addresses = resolve("threat-map-api.greynoise.io", 443, stop)?;
@@ -335,6 +357,7 @@ fn connect(stop: &AtomicBool) -> Result<tungstenite::WebSocket<MaybeTlsStream<Tc
     .map_err(|e| e.to_string())?;
     Ok(socket)
 }
+#[cfg(not(target_arch = "wasm32"))]
 fn worker(state: Arc<Mutex<State>>, stop: Arc<AtomicBool>) {
     let mut delay = 2u64;
     while !stop.load(Ordering::Relaxed) {

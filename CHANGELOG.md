@@ -1,6 +1,12 @@
-## AtlasSOC Desktop 0.8.0-rc.2 — release candidate 2, unreleased, build 16
+## AtlasSOC Desktop 0.8.0 — stable, 26 November 2026, build 17
 
-Scope frozen on 24 November 2026; this entry is completed at the release gate.
+Stable release for Windows x64 (unsigned) and macOS 14+ (Developer ID signed and notarised). It is the tested 0.8.0-rc.2
+code (candidate `1b52a34`) with only the version identity changed; rc.2 was not published separately. Everything
+below under 0.8.0-rc.2 and 0.8.0-rc.1 is in this release.
+
+## AtlasSOC Desktop 0.8.0-rc.2 — release candidate 2, 26 November 2026, build 16
+
+Pre-release (not the latest stable) for Windows x64 (unsigned) and macOS 14+ (Developer ID signed and notarised).
 
 - Settings → Updates on Windows and macOS: a daily check of the signed update feed (Ed25519, offline owner key with
   delegated signing key), channels Stable / Release Candidates / Betas, and a clear result for every outcome. A failed
@@ -11,7 +17,8 @@ Scope frozen on 24 November 2026; this entry is completed at the release gate.
 - Stability: the feed worker stops promptly even when DNS is slow.
 - Realtime mode: sampled real observation arcs are spread across incoming batches, with at most one second of visual
   delay; receipt counters and source timestamps remain unchanged.
-- Map: compass and hourly time-zone labels.
+- Dependencies: webpki-roots 1.0.12 (TLS root certificates) and tao 0.37.3 (Windows window layer).
+- Map: compass and hourly time-zone labels, each on its zone's meridian; the viewer's own zone shows the real local hour from the system clock (civil time zone and daylight saving time), in gold.
 - Fixes: help links in the Windows and macOS apps point to the public repository.
 - Hardening: dependency audit in CI.
 - Not in this release: Windows code signing.

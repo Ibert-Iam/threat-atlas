@@ -16,13 +16,17 @@ test-feed = []
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
 tiny-skia = "0.12"
 fontdue = "0.9"
 sha2 = "0.10"
+flate2 = "1"
+jiff = "1"
+
+# Network and signature crates: native hosts only. The WebAssembly build (crate::web) gets its data from the
+# browser and never opens a socket or checks a signature.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
 # Ed25519 feed signature check; same ring that rustls already uses (no new crate).
 ring = "0.17"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 webpki-roots = "1.0"
-flate2 = "1"
-jiff = "1"
