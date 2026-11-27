@@ -22,7 +22,7 @@ use windows_sys::Win32::{
         Input::KeyboardAndMouse::GetAsyncKeyState,
         WindowsAndMessaging::{
             GetClientRect, GetCursorPos, IsWindow, MessageBoxW, IDNO, IDYES, MB_ICONERROR, MB_OK,
-            MB_YESNOCANCEL,
+            MB_YESNO, MB_YESNOCANCEL,
         },
     },
 };
@@ -194,13 +194,20 @@ fn parse_mode(args: &[String]) -> Result<Mode, String> {
     }
 }
 
-/// The settings dialog: display mode (standard or panorama). OSINT sources and keys are chosen in AtlasSOC.
+/// The settings dialog: display mode (standard or panorama) and the update line (#92). OSINT sources and keys
+/// are chosen in AtlasSOC.
 fn configure(owner: Option<usize>) -> Result<(), Box<dyn Error>> {
     let path = panorama_setting().ok_or("Cannot find the local settings folder")?;
     let enabled = fs::read_to_string(&path).is_ok_and(|mode| mode.trim() == "panorama");
     let mode = if enabled { "Panorama" } else { "Standard" };
+    // One signed-feed check per opening of the settings; never while the screensaver runs.
+    let update = crate::saver_update::check();
+    let update_line = update
+        .as_ref()
+        .map(|outcome| format!("{}\n\n", threat_atlas_core::saver_update::describe(outcome)))
+        .unwrap_or_default();
     let message: Vec<u16> = format!(
-        "Current display mode: {mode}\n\nYes: Panorama across two matching side-by-side displays\nNo: Standard display mode\nCancel: Keep the current mode\n\nLive GreyNoise public threat-map telemetry. No cookies, browser, account or API key required.\nThe AtlasSOC view with rotating OSINT cards is used here. OSINT sources, watched domains and API keys are chosen in AtlasSOC Settings; this screen saver only reads them. With nothing chosen, no OSINT request is made.\nGreen LIVE means records arrived within 10 seconds. Routes expire after 6 seconds. Offline feeds reconnect automatically.\nThe header shows UTC and system local time. Observation times are receipt times in UTC.\nUse Windows Screen Saver Settings for idle time and lock behavior."
+        "{update_line}Current display mode: {mode}\n\nYes: Panorama across two matching side-by-side displays\nNo: Standard display mode\nCancel: Keep the current mode\n\nLive GreyNoise public threat-map telemetry. No cookies, browser, account or API key required.\nThe AtlasSOC view with rotating OSINT cards is used here. OSINT sources, watched domains and API keys are chosen in AtlasSOC Settings; this screen saver only reads them. With nothing chosen, no OSINT request is made.\nGreen LIVE means records arrived within 10 seconds. Routes expire after 6 seconds. Offline feeds reconnect automatically.\nThe header shows UTC and system local time. Observation times are receipt times in UTC.\nUse Windows Screen Saver Settings for idle time and lock behavior."
     )
     .encode_utf16()
     .chain(Some(0))
@@ -223,7 +230,34 @@ fn configure(owner: Option<usize>) -> Result<(), Box<dyn Error>> {
         fs::create_dir_all(path.parent().ok_or("Invalid settings path")?)?;
         fs::write(path, mode)?;
     }
+    if let Some(offer) = update
+        .as_ref()
+        .and_then(threat_atlas_core::saver_update::offer)
+    {
+        offer_update(owner, offer);
+    }
     Ok(())
+}
+
+/// The Update button: asks once, then downloads, verifies and opens the normal installer. Windows and the
+/// installer ask for their own approval; nothing is installed without them.
+fn offer_update(owner: HWND, offer: &threat_atlas_core::update_feed::Selected) {
+    let message: Vec<u16> = format!(
+        "Update to Threat Atlas {}?\n\nYes: download it, check it against the signed update list (size and SHA-256) and open the installer. Windows and the installer ask for your approval before anything changes.\nNo: keep the current version.",
+        offer.version
+    )
+    .encode_utf16()
+    .chain(Some(0))
+    .collect();
+    let title: Vec<u16> = "Threat Atlas Update"
+        .encode_utf16()
+        .chain(Some(0))
+        .collect();
+    if unsafe { MessageBoxW(owner, message.as_ptr(), title.as_ptr(), MB_YESNO) } == IDYES {
+        if let Err(why) = crate::saver_update::download_and_open(offer) {
+            show_error(&format!("The update was not installed: {why}"));
+        }
+    }
 }
 
 pub fn run() -> Result<(), Box<dyn Error>> {
