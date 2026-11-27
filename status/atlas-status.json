@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-27T08:30:27Z",
+  "generated_at": "2026-11-27T09:00:25Z",
   "project": {
     "name": "Threat Atlas",
     "repository_url": "https://github.com/Ibert-Iam/threat-atlas"
@@ -107,7 +107,7 @@
       "id": "cl",
       "name": "Jean-Claude Van Damme",
       "role": "CBO, Chief Bot Officer (Claude)",
-      "last_seen_at": "2026-11-27T08:30:04Z",
+      "last_seen_at": "2026-11-27T09:00:05Z",
       "state": "working",
       "credits": "low",
       "credits_checked_at": "2026-11-27T07:11:46Z",
@@ -135,7 +135,7 @@
       "id": "noris",
       "name": "Seek Norris",
       "role": "CMO, Chief Marketing Officer (DeepSeek)",
-      "last_seen_at": "2026-11-27T08:30:08Z",
+      "last_seen_at": "2026-11-27T09:00:21Z",
       "state": "working",
       "credits": "ok",
       "credits_checked_at": "2026-11-27T08:00:17Z",
@@ -150,7 +150,7 @@
       "id": "billy",
       "name": "Billy Badass",
       "role": "Crew (DeepSeek)",
-      "last_seen_at": "2026-11-27T08:30:04Z",
+      "last_seen_at": "2026-11-27T09:00:04Z",
       "state": "working",
       "credits": "ok",
       "credits_checked_at": "2026-11-27T08:05:03Z",
