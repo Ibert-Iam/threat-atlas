@@ -14,6 +14,28 @@ extern void ta_saver_worker_stop(void *);
 // The saver never reads the Keychain: it runs inside Apple's shared screen saver host, where an access prompt
 // would appear over the saver and an "Always Allow" would extend to other savers. Keyed sources stay off here.
 
+// One OSINT worker per host process, shared by every screen's view. Separate workers would double the provider
+// requests and race on the same cache files (the core's temporary file name is per process). Main thread only.
+static void *sharedWorker=NULL;
+static NSUInteger sharedWorkerUsers=0;
+static void *AtlasWorkerAcquire(void) {
+    if (!sharedWorker) {
+        NSURL *support=[NSFileManager.defaultManager URLsForDirectory:NSApplicationSupportDirectory inDomains:NSUserDomainMask].firstObject;
+        if (!support) return NULL;
+        // Separate writable cache: the app and saver never write each other's OSINT state.
+        NSURL *cache=[support URLByAppendingPathComponent:@"ThreatAtlasSaver/osint" isDirectory:YES];
+        NSURL *settings=[support URLByAppendingPathComponent:@"ThreatAtlasPrivateRadar/settings.json"];
+        sharedWorker=ta_saver_worker_start(cache.fileSystemRepresentation,settings.fileSystemRepresentation,NULL,NULL);
+        if (!sharedWorker) return NULL;
+    }
+    sharedWorkerUsers++;
+    return sharedWorker;
+}
+static void AtlasWorkerRelease(void *worker) {
+    if (!worker || worker!=sharedWorker || sharedWorkerUsers==0) return;
+    if (--sharedWorkerUsers==0) {ta_saver_worker_stop(sharedWorker);sharedWorker=NULL;}
+}
+
 @interface ThreatAtlasSOCView : ScreenSaverView
 @property(nonatomic) void *session;
 @property(nonatomic) void *worker;
@@ -28,18 +50,12 @@ extern void ta_saver_worker_stop(void *);
     if (self) {self.animationTimeInterval=preview ? 1.0/10.0 : 1.0/20.0;[self openSession];}
     return self;
 }
-- (void)dealloc {[_fallbackTimer invalidate];if (_worker) ta_saver_worker_stop(_worker);if (_session) ta_saver_drop(_session);}
+- (void)dealloc {[_fallbackTimer invalidate];if (_worker) AtlasWorkerRelease(_worker);if (_session) ta_saver_drop(_session);}
 - (void)openSession {
     if (self.session) return;
     self.session=ta_saver_new();
     if (!self.session) return;
-    NSURL *support=[NSFileManager.defaultManager URLsForDirectory:NSApplicationSupportDirectory inDomains:NSUserDomainMask].firstObject;
-    if (support) {
-        // Separate writable cache: the app and saver never write each other's OSINT state.
-        NSURL *cache=[support URLByAppendingPathComponent:@"ThreatAtlasSaver/osint" isDirectory:YES];
-        NSURL *settings=[support URLByAppendingPathComponent:@"ThreatAtlasPrivateRadar/settings.json"];
-        self.worker=ta_saver_worker_start(cache.fileSystemRepresentation,settings.fileSystemRepresentation,NULL,NULL);
-    }
+    if (!self.worker) self.worker=AtlasWorkerAcquire();
     self.lastIntel=0;self.lastReload=0;
 }
 - (void)ensureRendering {
@@ -62,7 +78,7 @@ extern void ta_saver_worker_stop(void *);
     else {[self stopAnimation];}
 }
 - (void)startAnimation {[super startAnimation];[self ensureRendering];}
-- (void)stopAnimation {[self.fallbackTimer invalidate];self.fallbackTimer=nil;if (self.worker) {ta_saver_worker_stop(self.worker);self.worker=NULL;}if (self.session) {ta_saver_drop(self.session);self.session=NULL;}[super stopAnimation];}
+- (void)stopAnimation {[self.fallbackTimer invalidate];self.fallbackTimer=nil;if (self.worker) {AtlasWorkerRelease(self.worker);self.worker=NULL;}if (self.session) {ta_saver_drop(self.session);self.session=NULL;}[super stopAnimation];}
 - (void)animateOneFrame {[self setNeedsDisplay:YES];}
 - (void)drawRect:(NSRect)dirty {
     [[NSColor colorWithCalibratedRed:6.0/255 green:12.0/255 blue:20.0/255 alpha:1] setFill];NSRectFill(self.bounds);
