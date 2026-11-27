@@ -8,6 +8,42 @@ thread_local! {
     pub(crate) static TEST_OFFSET: std::cell::Cell<Option<i32>> = const { std::cell::Cell::new(None) };
 }
 
+/// WebAssembly has no system clock or time-zone database: the web page sets both on every frame.
+#[cfg(target_arch = "wasm32")]
+static WEB_NOW_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+#[cfg(target_arch = "wasm32")]
+static WEB_OFFSET_S: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
+#[cfg(target_arch = "wasm32")]
+pub fn set_web_time(now_ms: u64, offset_seconds: i32) {
+    use std::sync::atomic::Ordering::Relaxed;
+    WEB_NOW_MS.store(now_ms, Relaxed);
+    WEB_OFFSET_S.store(offset_seconds.clamp(-18 * 3600, 18 * 3600), Relaxed);
+}
+#[cfg(target_arch = "wasm32")]
+pub fn web_now_ms() -> u64 {
+    WEB_NOW_MS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Now: the system clock natively, the page's clock in WebAssembly.
+fn now() -> Timestamp {
+    #[cfg(target_arch = "wasm32")]
+    {
+        Timestamp::from_millisecond(web_now_ms() as i64).unwrap_or(Timestamp::UNIX_EPOCH)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        Timestamp::now()
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn local_time(utc: Timestamp) -> ZonedDateTime {
+    let s = WEB_OFFSET_S.load(std::sync::atomic::Ordering::Relaxed);
+    let offset = jiff::tz::Offset::from_seconds(s).unwrap_or(jiff::tz::Offset::UTC);
+    utc.to_zoned_datetime(TimeZone::fixed(offset))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn local_time(utc: Timestamp) -> ZonedDateTime {
     #[cfg(test)]
     if let Some(offset) = TEST_OFFSET
@@ -21,7 +57,7 @@ fn local_time(utc: Timestamp) -> ZonedDateTime {
 
 /// The machine's current offset from UTC in seconds east (the same source as the LOCAL clock).
 pub fn local_offset_seconds() -> i32 {
-    local_time(Timestamp::now()).offset().seconds()
+    local_time(now()).offset().seconds()
 }
 
 /// Parse an RFC 3339 timestamp (`2026-11-14T08:12:45.5Z`, `...+01:00`). The offset is required;
