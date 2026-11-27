@@ -462,6 +462,16 @@ impl Renderer {
         }
     }
 }
+/// Frame width for a window or viewport of `width` x `height` (any unit, only the shape counts), in steps of
+/// 8 pixels between `WIDTH` and `max`: the frame keeps its 900-pixel height and widens with the screen.
+pub fn layout_width(width: u32, height: u32, max: u32) -> u32 {
+    let max = max.max(crate::WIDTH);
+    if width == 0 || height == 0 {
+        return crate::WIDTH;
+    }
+    let wanted = u64::from(width) * u64::from(crate::HEIGHT) / u64::from(height) / 8 * 8;
+    (wanted.min(u64::from(max)) as u32).clamp(crate::WIDTH, max)
+}
 impl SocView {
     pub fn new() -> Self {
         Self {
@@ -2363,6 +2373,28 @@ mod tests {
         late.now_ms += REALTIME_ARC_LIFE_MS;
         view.update_arcs(&late);
         assert!(view.arcs.is_empty());
+    }
+    #[test]
+    fn layout_width_follows_the_screen_shape_within_limits() {
+        assert_eq!(layout_width(1440, 900, 2160), 1440);
+        assert_eq!(
+            layout_width(390, 844, 2160),
+            1440,
+            "portrait phone keeps the base frame"
+        );
+        assert_eq!(layout_width(1920, 1080, 2160), 1600);
+        assert_eq!(layout_width(3440, 1440, 2160), 2144);
+        assert_eq!(layout_width(5120, 1440, 2160), 2160);
+        assert_eq!(layout_width(0, 0, 2160), 1440);
+        assert_eq!(layout_width(u32::MAX, 1, 2160), 2160);
+        assert_eq!(
+            layout_width(3000, 900, 100),
+            1440,
+            "max never below the base frame"
+        );
+        let mut view = SocView::new();
+        assert_eq!(view.set_width(layout_width(1920, 1080, 2160)), 1600);
+        assert_eq!(view.width(), 1600);
     }
     #[test]
     fn web_mode_draws_and_restores_the_desktop_frame() {

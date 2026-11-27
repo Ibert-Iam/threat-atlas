@@ -2,7 +2,12 @@
 //! public GreyNoise WebSocket itself and hands each message here as UTF-8 text. This module only keeps the same
 //! feed state and draws the same SOC view as the desktop apps, into an RGBA buffer the page copies to a canvas.
 //! No network, no keys, no storage, no threads. Time and the UTC offset come from the browser on every call.
-use crate::{clock, feed::State, render::soc::SocView, HEIGHT};
+use crate::{
+    clock,
+    feed::State,
+    render::soc::{layout_width, SocView},
+    HEIGHT,
+};
 
 struct Web {
     state: State,
@@ -71,6 +76,17 @@ pub extern "C" fn web_frame(now_ms: f64, offset_minutes_east: i32) -> *const u8 
     let snapshot = w.state.snapshot(now);
     let counts = w.state.counts(now);
     w.view.draw(&snapshot, counts, None, 0).as_ptr()
+}
+
+/// Widest frame the page asks for: the same limit as the desktop hosts (map plus a top-countries column).
+const MAX_WIDTH: u32 = 2160;
+
+/// Lays the frame out for a viewport `width` x `height` (any unit, only the shape counts): wider screens get
+/// the wide SOC layout, up to `MAX_WIDTH`; anything narrower than 16:10 keeps the 1440-pixel frame and the
+/// page letterboxes it. Returns the frame width in use.
+#[no_mangle]
+pub extern "C" fn web_layout(width: u32, height: u32) -> u32 {
+    web().view.set_width(layout_width(width, height, MAX_WIDTH))
 }
 
 #[no_mangle]
