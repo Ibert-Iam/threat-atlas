@@ -2,7 +2,8 @@
 
 Status: **partly shipped in AtlasSOC Desktop 0.8.0 (stable, 26 November 2026).** WP1 (feed and signing), WP2 (core check
 and state), WP3 (Windows Settings → Updates) and WP4 (macOS Settings → Updates) are in 0.8.0. WP5 (screensaver
-banner/button) and WP6 (`get-latest` scripts) are not shipped yet; automatic install modes and the remaining items
+banner/button: core and Windows settings dialog in progress, see #92; macOS sheet follows the macOS saver on the
+shared core) and WP6 (`get-latest` scripts) are not shipped yet; automatic install modes and the remaining items
 stay future work.
 The specification was requested by the owner on 16 November 2026 after AtlasSOC 0.8.0-rc.1. The owner decisions in
 section 10 were taken on 16 November 2026 (all recommendations accepted).

@@ -1,0 +1,5 @@
+# ibert.se/robots.txt — lines AtlasSOC needs. Merge into the site's existing robots.txt; do not drop its rules.
+User-agent: *
+Allow: /AtlasSOC/
+
+Sitemap: https://ibert.se/AtlasSOC/sitemap.xml
