@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-28T04:05:40Z",
+  "generated_at": "2026-11-28T07:09:16Z",
   "project": {
     "name": "Threat Atlas",
     "repository_url": "https://github.com/Ibert-Iam/threat-atlas"
@@ -121,7 +121,7 @@
       "id": "mac",
       "name": "MacGyver",
       "role": "Crew (Codex)",
-      "last_seen_at": "2026-11-28T03:04:11Z",
+      "last_seen_at": "2026-11-28T07:08:56Z",
       "state": "idle",
       "credits": "ok",
       "credits_checked_at": "2026-11-27T14:00:04Z",
@@ -135,7 +135,7 @@
       "id": "noris",
       "name": "Seek Norris",
       "role": "CMO, Chief Marketing Officer (DeepSeek)",
-      "last_seen_at": "2026-11-27T22:00:09Z",
+      "last_seen_at": "2026-11-28T06:35:45Z",
       "state": "working",
       "credits": "ok",
       "credits_checked_at": "2026-11-27T16:00:14Z",
@@ -150,13 +150,13 @@
       "id": "billy",
       "name": "Billy Badass",
       "role": "Crew (DeepSeek)",
-      "last_seen_at": "2026-11-28T04:00:04Z",
+      "last_seen_at": "2026-11-28T07:00:04Z",
       "state": "working",
       "credits": "ok",
-      "credits_checked_at": "2026-11-27T16:05:03Z",
+      "credits_checked_at": "2026-11-28T06:05:03Z",
       "credits_reading": {
         "kind": "usd",
-        "value": 5.78,
+        "value": 5.74,
         "full": 50.0
       },
       "source": "status"
