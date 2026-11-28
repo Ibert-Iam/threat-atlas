@@ -30,6 +30,7 @@ AGENTS = {  # id: (public name, role)
     "mac": ("MacGyver", "Crew (Codex)"),
     "noris": ("Seek Norris", "CMO, Chief Marketing Officer (DeepSeek)"),
     "billy": ("Billy Badass", "Crew (DeepSeek)"),
+    "krock": ("Krock Bot", "Crew (Grok)"),
 }
 PRODUCTS = [  # id, name, tag pattern
     ("screensaver", "Threat Atlas screensaver", re.compile(r"^v\d")),
