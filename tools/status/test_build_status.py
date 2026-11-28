@@ -65,6 +65,11 @@ class Agents(unittest.TestCase):
         self.assertEqual(rows["mac"]["last_seen_at"], "2026-11-20T09:00:00Z")
         self.assertEqual(rows["billy"]["source"], "none")
 
+    def test_krock_is_listed(self):
+        status = {"krock": {"updated_at": "2026-11-20T14:30:00Z", "state": "off"}}
+        row = {r["id"]: r for r in b.agent_rows(status, {}, None, NOW)}["krock"]
+        self.assertEqual((row["name"], row["state"], row["source"]), ("Krock Bot", "off", "status"))
+
     def test_newest_billy_capacity_record(self):
         handover = {"billy": {"updated_at": "2026-11-20T14:00:00Z",
                               "credits": {"status": "available", "reported_at": "2026-11-10T10:00:00Z"},
