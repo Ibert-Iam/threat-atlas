@@ -341,7 +341,9 @@ impl Renderer {
                     36,
                     70,
                     14,
-                    if self.web_mode {
+                    if self.saver_identity {
+                        "SCREENSAVER / GREYNOISE LIVE + OPTIONAL OSINT"
+                    } else if self.web_mode {
                         "SECURITY OPERATIONS / GREYNOISE LIVE / WEB"
                     } else {
                         "SECURITY OPERATIONS / GREYNOISE LIVE + CLOUDFLARE RADAR"
@@ -360,7 +362,9 @@ impl Renderer {
             35,
             875,
             12,
-            if self.web_mode {
+            if self.saver_identity {
+                "GREYNOISE: RECEIVED RECORDS, NOT UNIQUE ATTACKS | OPTIONAL OSINT: SOURCE CARDS | TIMES UTC"
+            } else if self.web_mode {
                 "GREYNOISE: RECEIVED RECORDS, NOT UNIQUE ATTACKS | TIMES UTC | IBERT.SE/ATLASSOC"
             } else {
                 "GREYNOISE: RECEIVED RECORDS, NOT UNIQUE ATTACKS | RADAR: AGGREGATE SHARES | TIMES UTC"
@@ -906,7 +910,7 @@ impl SocView {
             1044,
             80,
             13,
-            &if self.options.web {
+            &if self.options.saver_identity || self.options.web {
                 format!("GREYNOISE {}", s.status)
             } else {
                 format!("GREYNOISE {} | RADAR {}", s.status, radar_label)
@@ -1002,7 +1006,7 @@ impl SocView {
             {
                 r.text(1044, 590 + i as i32 * 22, 12, line, MUTED);
             }
-        } else {
+        } else if !self.options.saver_identity {
             // Right panel, lower half: Cloudflare Radar rows as supplied (informational).
             let layer = if self.options.radar_layer {
                 ""
@@ -1096,7 +1100,7 @@ impl SocView {
         }
         for (i, (target, label)) in [(false, "RADAR ORIGIN"), (true, "RADAR TARGET")]
             .into_iter()
-            .filter(|_| !self.options.web)
+            .filter(|_| !self.options.web && !self.options.saver_identity)
             .enumerate()
         {
             let y = 816 + i as i32 * 18;
@@ -1118,9 +1122,21 @@ impl SocView {
         for (i, note) in [
             "TINT: TOP CLASS, 5 MIN",
             arcs_note,
-            "PIE AREA = RADAR SHARE",
-            "TARGETS ONLY IF SUPPLIED",
-            "CLICK COUNTRY TO FOCUS",
+            if self.options.saver_identity {
+                "NO CLOUDFLARE RADAR"
+            } else {
+                "PIE AREA = RADAR SHARE"
+            },
+            if self.options.saver_identity {
+                "OSINT: ATLAS SETTINGS"
+            } else {
+                "TARGETS ONLY IF SUPPLIED"
+            },
+            if self.options.saver_identity {
+                "COUNTRY FOCUS ROTATES"
+            } else {
+                "CLICK COUNTRY TO FOCUS"
+            },
         ]
         .iter()
         .filter(|note| {

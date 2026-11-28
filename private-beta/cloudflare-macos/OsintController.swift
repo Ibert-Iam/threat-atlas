@@ -103,9 +103,26 @@ final class OsintController: ObservableObject {
         return String(decoding: data, as: UTF8.self)
     }
 
+    /// Non-secret, read-only settings contract consumed by the shared saver core.
+    /// Called only once the existing licence gate has allowed this controller to start.
+    private func saveSaverSettings() {
+        let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("ThreatAtlasPrivateRadar", isDirectory: true)
+        let object: [String: Any] = ["enabled_sources": enabled.sorted(), "watch_domains": watchDomains]
+        guard let data = try? JSONSerialization.data(withJSONObject: object), data.count <= 16384 else { return }
+        do {
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            try data.write(to: root.appendingPathComponent("settings.json"), options: .atomic)
+        } catch {
+            // No credentials or provider data enter this file or diagnostic path.
+            NSLog("Threat Atlas: could not save screensaver source settings")
+        }
+    }
+
     /// Starts the worker. Call only after the licence was accepted (the app's consent gate).
     func start() {
         guard handle == nil else { return }
+        saveSaverSettings()
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("ThreatAtlasPrivateRadar/osint", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
@@ -137,6 +154,7 @@ final class OsintController: ObservableObject {
         watchDomains = Array(parts.prefix(10))
         UserDefaults.standard.set(watchDomains, forKey: Self.watchKey)
         pushWatch()
+        if handle != nil { saveSaverSettings() }
     }
 
     /// Queues the click-only AbuseIPDB check. Returns false when refused.
@@ -182,7 +200,7 @@ final class OsintController: ObservableObject {
     func set(_ id: String, on: Bool) {
         if on { enabled.insert(id) } else { enabled.remove(id) }
         UserDefaults.standard.set(enabled.sorted(), forKey: Self.defaultsKey)
-        if let handle { ta_osint_set_enabled(handle, json()) }
+        if let handle { ta_osint_set_enabled(handle, json()); saveSaverSettings() }
     }
 
     func refresh() { if let handle { ta_osint_refresh(handle) } }
