@@ -1,3 +1,11 @@
+## Screensaver 0.8.0 — shared saver core
+
+- macOS screensaver moves to the shared AtlasSOC saver core and the same SOC view as Windows.
+- Optional keyless OSINT cards appear when enabled in AtlasSOC; keyed sources stay off because the macOS saver never
+  reads the Keychain.
+- Cloudflare Radar and click-only lookups are not part of the screensaver.
+- 0.4.x users need one manual 0.8.0 install before the signed-feed updater applies.
+
 ## AtlasSOC Desktop 0.8.0 — stable, 26 November 2026, build 17
 
 Stable release for Windows x64 (unsigned) and macOS 14+ (Developer ID signed and notarised). It is the tested 0.8.0-rc.2
