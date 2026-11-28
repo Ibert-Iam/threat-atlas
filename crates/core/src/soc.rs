@@ -95,7 +95,23 @@ pub const REALTIME_MAX_ARCS: usize = 160;
 pub const REALTIME_ARC_LIFE_MS: u64 = 3000;
 const REALTIME_FADE_IN_MS: u64 = 250;
 /// Visual playback only. Receipt timestamps, counters and source freshness are never delayed.
+/// Shortest spread, and the spread used before two batches have been seen.
 const REALTIME_PLAYBACK_MS: u64 = 1000;
+/// Longest spread. Both realtime legends state this maximum delay.
+const REALTIME_PLAYBACK_MAX_MS: u64 = 6000;
+const REALTIME_INTERVALS: usize = 10;
+const REALTIME_LEGEND: &str = "ARCS: <=40/S, <=6S DELAY";
+const REALTIME_LEGEND_WIDE: &str = "ARCS <=40/S, <=6S DELAY";
+
+/// Lower median of the last batch intervals, clamped to 1–6 s. Empty means the 1 s floor.
+fn realtime_playback_ms(intervals: &VecDeque<u64>) -> u64 {
+    if intervals.is_empty() {
+        return REALTIME_PLAYBACK_MS;
+    }
+    let mut ordered: Vec<u64> = intervals.iter().copied().collect();
+    ordered.sort_unstable();
+    ordered[(ordered.len() - 1) / 2].clamp(REALTIME_PLAYBACK_MS, REALTIME_PLAYBACK_MAX_MS)
+}
 const REALTIME_PENDING_ARCS: usize = 40;
 const REALTIME_LIST_REFRESH_MS: u64 = 500;
 /// Country tints and outlines are redrawn at most once a second (or when options change).
@@ -256,6 +272,8 @@ struct Arc {
 struct PendingArc {
     received: Received,
     due: u64,
+    /// Spread this arc was given. Ageing uses this, not a later longer window.
+    play_ms: u64,
 }
 struct Line {
     route: String,
@@ -273,6 +291,10 @@ pub struct SocView {
     /// xorshift state for realtime sampling (display only, not security-relevant).
     rng: u64,
     last_ms: u64,
+    /// Arrival time of the previous realtime batch. None until the first batch.
+    last_batch_ms: Option<u64>,
+    /// Gaps between realtime batches, oldest first, at most ten.
+    batch_intervals: VecDeque<u64>,
     list: Vec<Line>,
     list_ms: u64,
     overlay_ms: u64,
@@ -484,6 +506,8 @@ impl SocView {
             tokens: 1.,
             rng: 0x9e37_79b9_7f4a_7c15,
             last_ms: 0,
+            last_batch_ms: None,
+            batch_intervals: VecDeque::new(),
             list: Vec::new(),
             list_ms: 0,
             overlay_ms: 0,
@@ -551,6 +575,8 @@ impl SocView {
             self.pending_arcs.clear();
             self.arcs.clear();
             self.arc_options = Some(options);
+            self.last_batch_ms = None;
+            self.batch_intervals.clear();
         }
         let (rate, cap, life, fade_in) = match self.options.motion {
             Motion::Realtime => (
@@ -588,7 +614,20 @@ impl SocView {
             if matches!(s.status.as_str(), "OFFLINE" | "STALE") {
                 self.pending_arcs.clear();
             } else {
-                fresh.retain(|r| now.saturating_sub(r.received_ms) <= REALTIME_PLAYBACK_MS);
+                // A batch is the new records on this frame. The first one has no interval and
+                // uses the 1 s floor. Later ones spread over the median of the last ten gaps.
+                let mut playback = realtime_playback_ms(&self.batch_intervals);
+                if !fresh.is_empty() {
+                    if let Some(previous) = self.last_batch_ms {
+                        self.batch_intervals.push_back(now.saturating_sub(previous));
+                        while self.batch_intervals.len() > REALTIME_INTERVALS {
+                            self.batch_intervals.pop_front();
+                        }
+                    }
+                    self.last_batch_ms = Some(now);
+                    playback = realtime_playback_ms(&self.batch_intervals);
+                }
+                fresh.retain(|r| now.saturating_sub(r.received_ms) <= playback);
                 // Select a bounded, unbiased subset of actual arrivals, independently of the
                 // rendering budget. A drained budget must not discard the next second's data.
                 if fresh.len() > REALTIME_PENDING_ARCS {
@@ -605,11 +644,12 @@ impl SocView {
                 for (i, r) in fresh.into_iter().enumerate() {
                     self.pending_arcs.push_back(PendingArc {
                         received: r.clone(),
-                        due: now + i as u64 * REALTIME_PLAYBACK_MS / count,
+                        due: now + i as u64 * playback / count,
+                        play_ms: playback,
                     });
                 }
                 self.pending_arcs
-                    .retain(|p| now.saturating_sub(p.received.received_ms) <= REALTIME_PLAYBACK_MS);
+                    .retain(|p| now.saturating_sub(p.received.received_ms) <= p.play_ms);
                 self.pending_arcs.make_contiguous().sort_by_key(|p| p.due);
                 // Keep near-term work under sustained input; never accumulate a long backlog.
                 self.pending_arcs.truncate(REALTIME_PENDING_ARCS);
@@ -1111,7 +1151,7 @@ impl SocView {
             r.text(660, y, 11, label, TEXT);
         }
         let arcs_note = if self.options.motion == Motion::Realtime {
-            "ARCS: <=40/S, <=1S DELAY"
+            REALTIME_LEGEND
         } else {
             "ARCS: MAX 2/S, FADE 8 S"
         };
@@ -1246,7 +1286,7 @@ impl Dashboard<'_> {
 
         // 06: map tile hints, focused-country callout, status line under the map.
         let arcs_note = if o.motion == Motion::Realtime {
-            "ARCS <=40/S, <=1S DELAY"
+            REALTIME_LEGEND_WIDE
         } else {
             "ARCS MAX 2/S, FADE 8 S"
         };
@@ -2469,6 +2509,191 @@ mod tests {
         view.options.motion = Motion::Still;
         view.update_arcs(&offline);
         assert!(view.arcs.is_empty());
+    }
+    /// Frames during one measured gap that launch at least one arc.
+    fn frames_with_launches(
+        view: &mut SocView,
+        state: &State,
+        start: u64,
+        frames: usize,
+        step: u64,
+    ) -> usize {
+        let mut covered = 0;
+        for i in 0..frames {
+            let now = start + i as u64 * step;
+            view.update_arcs(&state.snapshot(now));
+            if view.arcs.iter().any(|arc| arc.born == now) {
+                covered += 1;
+            }
+            assert!(view.pending_arcs.len() <= REALTIME_PENDING_ARCS);
+        }
+        covered
+    }
+    #[test]
+    fn realtime_four_second_batches_cover_at_least_eighty_percent_of_frames() {
+        let mut view = SocView::new();
+        let mut state = State::default();
+        let start = 2_000_000;
+        for _ in 0..40 {
+            state.ingest(&row("NL", "US", "benign"), start);
+        }
+        view.update_arcs(&state.snapshot(start));
+        view.update_arcs(&state.snapshot(start + 1_001));
+        assert!(
+            view.pending_arcs.is_empty(),
+            "one batch has no measured interval and stays inside 1 s"
+        );
+        let batch = start + 4_000;
+        for _ in 0..40 {
+            state.ingest(&row("NL", "US", "benign"), batch);
+        }
+        // 100 ms frames: a 1 s spread covers 10 of 40 frames (25 %). 4 s must cover at least 80 %.
+        let frames = 40;
+        let covered = frames_with_launches(&mut view, &state, batch, frames, 100);
+        assert!(
+            covered * 5 >= frames * 4,
+            "launches in {covered} of {frames} frames"
+        );
+    }
+    #[test]
+    fn realtime_sustained_batches_do_not_grow_the_queue() {
+        let mut view = SocView::new();
+        let mut state = State::default();
+        let start = 2_000_000;
+        let mut midway = Vec::new();
+        for batch in 0..12u64 {
+            let now = start + batch * 4_000;
+            for _ in 0..200 {
+                state.ingest(&row("NL", "US", "benign"), now);
+            }
+            for step in 0..40 {
+                let t = now + step * 100;
+                view.update_arcs(&state.snapshot(t));
+                assert!(
+                    view.pending_arcs.len() <= REALTIME_PENDING_ARCS,
+                    "pending {} at {t}",
+                    view.pending_arcs.len()
+                );
+                if step == 25 {
+                    midway.push(view.pending_arcs.len());
+                }
+            }
+        }
+        assert!(
+            midway[2..].iter().all(|&n| n > 0),
+            "a 4 s cadence still has queued arcs at 2.5 s: {midway:?}"
+        );
+        assert!(midway[11] <= midway[2], "queue grew: {midway:?}");
+    }
+    #[test]
+    fn realtime_stale_feed_clears_a_long_queue() {
+        let mut view = SocView::new();
+        let mut state = State::default();
+        let start = 2_000_000;
+        for _ in 0..40 {
+            state.ingest(&row("NL", "US", "benign"), start);
+        }
+        view.update_arcs(&state.snapshot(start));
+        let batch = start + 4_000;
+        for _ in 0..40 {
+            state.ingest(&row("NL", "US", "benign"), batch);
+        }
+        view.update_arcs(&state.snapshot(batch));
+        // 2 s is inside a 4 s spread and past the old 1 s window.
+        view.update_arcs(&state.snapshot(batch + 2_000));
+        assert!(
+            !view.pending_arcs.is_empty(),
+            "the measured interval must still be playing"
+        );
+        let mut stale = state.snapshot(batch + 2_100);
+        stale.status = "STALE".into();
+        view.update_arcs(&stale);
+        assert!(
+            view.pending_arcs.is_empty(),
+            "a stale feed clears the queue"
+        );
+    }
+    #[test]
+    fn realtime_fewer_than_two_batches_stays_inside_one_second() {
+        let mut view = SocView::new();
+        let mut state = State::default();
+        let start = 2_000_000;
+        view.update_arcs(&state.snapshot(start));
+        assert!(view.pending_arcs.is_empty());
+        for _ in 0..5 {
+            state.ingest(&row("NL", "US", "benign"), start);
+        }
+        view.update_arcs(&state.snapshot(start));
+        let latest = view
+            .pending_arcs
+            .iter()
+            .map(|pending| pending.due)
+            .max()
+            .expect("the first batch is spread, not dropped");
+        assert!(latest <= start + REALTIME_PLAYBACK_MS);
+        assert!(latest < start + 6_000);
+        view.update_arcs(&state.snapshot(start + REALTIME_PLAYBACK_MS + 1));
+        assert!(view.pending_arcs.is_empty());
+    }
+    #[test]
+    fn realtime_interval_median_clamps_and_keeps_ten() {
+        let mut view = SocView::new();
+        let mut state = State::default();
+        let start = 2_000_000;
+        let spread_end = |view: &SocView, now: u64| {
+            view.pending_arcs
+                .iter()
+                .filter(|pending| pending.received.received_ms == now)
+                .map(|pending| pending.due)
+                .max()
+                .unwrap_or(now)
+        };
+        let arrive = |view: &mut SocView, state: &mut State, now: u64, n: usize| {
+            for _ in 0..n {
+                state.ingest(&row("NL", "US", "benign"), now);
+            }
+            view.update_arcs(&state.snapshot(now));
+        };
+        arrive(&mut view, &mut state, start, 5);
+        // 0.5 s is below the floor, so the second batch still uses 1 s (last of 5 due at +800 ms).
+        let early = start + 500;
+        arrive(&mut view, &mut state, early, 5);
+        assert_eq!(spread_end(&view, early), early + 800);
+        // One 10 s gap, on its own, clamps to 6 s (last of 5 due at +4800 ms, not +8000 ms).
+        let mut slow_view = SocView::new();
+        let mut slow_state = State::default();
+        arrive(&mut slow_view, &mut slow_state, start, 1);
+        let slow = start + 10_000;
+        arrive(&mut slow_view, &mut slow_state, slow, 5);
+        assert_eq!(spread_end(&slow_view, slow), slow + 4_800);
+        // Ten long gaps, then enough 1 s gaps that only a window of 10 still knows them.
+        let mut view = SocView::new();
+        let mut state = State::default();
+        let mut now = start;
+        arrive(&mut view, &mut state, now, 1);
+        for _ in 0..10 {
+            now += 6_000;
+            arrive(&mut view, &mut state, now, 1);
+        }
+        for _ in 0..3 {
+            now += 1_000;
+            arrive(&mut view, &mut state, now, 1);
+        }
+        now += 1_000;
+        arrive(&mut view, &mut state, now, 5);
+        assert_eq!(
+            spread_end(&view, now),
+            now + 4_800,
+            "four short intervals must not evict a window of ten long ones"
+        );
+        now += 1_000;
+        arrive(&mut view, &mut state, now, 5);
+        assert_eq!(spread_end(&view, now), now + 800);
+    }
+    #[test]
+    fn realtime_legend_states_the_six_second_maximum() {
+        assert_eq!(REALTIME_LEGEND, "ARCS: <=40/S, <=6S DELAY");
+        assert_eq!(REALTIME_LEGEND_WIDE, "ARCS <=40/S, <=6S DELAY");
     }
     #[test]
     fn realtime_is_the_default() {
