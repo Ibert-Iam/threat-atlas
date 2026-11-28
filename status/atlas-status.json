@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-28T03:04:32Z",
+  "generated_at": "2026-11-28T04:05:40Z",
   "project": {
     "name": "Threat Atlas",
     "repository_url": "https://github.com/Ibert-Iam/threat-atlas"
@@ -150,7 +150,7 @@
       "id": "billy",
       "name": "Billy Badass",
       "role": "Crew (DeepSeek)",
-      "last_seen_at": "2026-11-28T03:00:04Z",
+      "last_seen_at": "2026-11-28T04:00:04Z",
       "state": "working",
       "credits": "ok",
       "credits_checked_at": "2026-11-27T16:05:03Z",
